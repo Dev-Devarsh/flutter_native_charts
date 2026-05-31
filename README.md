@@ -4,6 +4,11 @@ High-performance **financial / time-series charts** for Flutter on **Android** a
 
 **Customization:** every **`ChartStyle`** field and **`ChartController`** / **`NativeChartView`** option is documented in [API reference (customization)](#api-reference-customization).
 
+## Ideal Use Cases
+
+- **Crypto & Trading Apps:** Rendering tens of thousands of candles smoothly with continuous pan/zoom at 60–120 fps.
+- **Live Dashboards:** High-frequency streaming data (live ticks, real-time price updates) where typical Flutter `Canvas` repaints would cause UI thread jank.
+- **Heavy Interactive Charts:** When you need batched GPU geometry to maintain predictability during rapid user interactions over large datasets.
 ---
 
 ## Why this package exists
