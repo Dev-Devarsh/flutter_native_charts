@@ -4,6 +4,19 @@ High-performance **financial / time-series charts** for Flutter on **Android** a
 
 **Customization:** every **`ChartStyle`** field and **`ChartController`** / **`NativeChartView`** option is documented in [API reference (customization)](#api-reference-customization).
 
+## Demos
+
+Screen recordings from the **`example/`** app (candle presets). Open each file in the repo to play inline on GitHub, or download locally.
+
+| Recording | File | What it shows |
+|-----------|------|----------------|
+| **Candle · data feed** | [`candle_simple.mp4`](./doc/videos/candle_simple.mp4) | Bulk history via **`pushCandlesRaw`**, then smooth pan and zoom over a static OHLC series. |
+| **Candle · live** | [`candle_live.mp4`](./doc/videos/candle_live.mp4) | Short seeded history, then **`updateLivePrice`** streaming over FFI into rolling 1‑minute buckets. |
+
+**Frame rate:** both clips were captured in **Flutter debug mode**, where you should expect on the order of **~60 FPS** during interaction. **Release** builds (`flutter run --release` / profile store builds) drop debug assertions and JIT overhead, so the same chart can often reach **up to ~120 FPS** on capable hardware—exact numbers depend on device, dataset size, and how aggressively you pan or zoom.
+
+Run the same flows yourself from **`example/`** → **Candle · Data feed** and **Candle · Live** on the home screen.
+
 ## Ideal Use Cases
 
 - **Crypto & Trading Apps:** Rendering tens of thousands of candles smoothly with continuous pan/zoom at 60–120 fps.

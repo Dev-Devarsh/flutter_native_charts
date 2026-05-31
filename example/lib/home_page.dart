@@ -22,13 +22,17 @@ class HomePage extends StatelessWidget {
         children: [
           Text(
             'Six demos — each series type in data-feed and live mode.',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: const Color(0xFF8D93A2)),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: const Color(0xFF8D93A2)),
           ),
           const SizedBox(height: 16),
-          ..._demos.map((kind) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _DemoTile(kind: kind),
-              )),
+          ..._demos.map(
+            (kind) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _DemoTile(kind: kind),
+            ),
+          ),
         ],
       ),
     );
@@ -50,7 +54,9 @@ class _DemoTile extends StatelessWidget {
       child: InkWell(
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => ChartDemoScreen(kind: kind)),
+            MaterialPageRoute<void>(
+              builder: (_) => ChartDemoScreen(kind: kind),
+            ),
           );
         },
         child: Padding(
@@ -62,12 +68,16 @@ class _DemoTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: isLive ? const Color(0xFF1A2A22) : const Color(0xFF1A2230),
+                  color: isLive
+                      ? const Color(0xFF1A2A22)
+                      : const Color(0xFF1A2230),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   kind.icon,
-                  color: isLive ? const Color(0xFF7CFFB2) : const Color(0xFF8D93A2),
+                  color: isLive
+                      ? const Color(0xFF7CFFB2)
+                      : const Color(0xFF8D93A2),
                 ),
               ),
               const SizedBox(width: 14),
@@ -80,19 +90,28 @@ class _DemoTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             kind.title,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         _Badge(
                           label: isLive ? 'LIVE' : 'FEED',
-                          color: isLive ? const Color(0xFF7CFFB2) : const Color(0xFF8D93A2),
+                          color: isLive
+                              ? const Color(0xFF7CFFB2)
+                              : const Color(0xFF8D93A2),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Text(
                       kind.description,
-                      style: const TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF8D93A2)),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: Color(0xFF8D93A2),
+                      ),
                     ),
                   ],
                 ),
@@ -123,7 +142,12 @@ class _Badge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color, letterSpacing: 0.5),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
