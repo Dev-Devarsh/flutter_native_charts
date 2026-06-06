@@ -232,6 +232,58 @@ CHART_ENGINE_EXPORT void chart_engine_project_y(void* engine,
                                                  const double* in_y, int count,
                                                  double* out_ndc);
 
+/// Inverse of [chart_engine_project_x] for a single NDC X coordinate.
+CHART_ENGINE_EXPORT double chart_engine_unproject_x(void* engine, double x_ndc);
+
+/// Inverse of [chart_engine_project_y] for a single NDC Y coordinate.
+CHART_ENGINE_EXPORT double chart_engine_unproject_y(void* engine, double y_ndc);
+
+// --- Trade lines (two-point segments) ---
+CHART_ENGINE_EXPORT void chart_engine_sync_trade_lines(void* engine,
+                                                      const struct NativeTradeLine* lines,
+                                                      int count);
+
+/// Live preview while the user draws a segment (press-hold → drag → release).
+CHART_ENGINE_EXPORT void chart_engine_set_trade_line_draft(void* engine,
+                                                          int active,
+                                                          double x1,
+                                                          double y1,
+                                                          double x2,
+                                                          double y2);
+
+CHART_ENGINE_EXPORT int chart_engine_trade_line_count(void* engine);
+
+CHART_ENGINE_EXPORT int chart_engine_get_trade_line(void* engine,
+                                                   int index,
+                                                   struct NativeTradeLine* out);
+
+/// Invoked on the native UI thread when the user finishes drawing a segment.
+typedef void (*ChartTradeLineDrawEndCallback)(void* user_data,
+                                              double x1,
+                                              double y1,
+                                              double x2,
+                                              double y2);
+
+/// Register a Dart [NativeCallable] listener (or NULL to clear).
+CHART_ENGINE_EXPORT void chart_engine_set_trade_line_draw_end_listener(
+    void* engine,
+    ChartTradeLineDrawEndCallback callback,
+    void* user_data);
+
+/// Called by native gesture code on draw release. Clears the draft preview and
+/// invokes the registered listener (if any).
+CHART_ENGINE_EXPORT void chart_engine_notify_trade_line_draw_end(void* engine,
+                                                                 double x1,
+                                                                 double y1,
+                                                                 double x2,
+                                                                 double y2);
+
+/// Monotonic counter bumped when Dart requests an in-progress draw be cancelled.
+CHART_ENGINE_EXPORT long long chart_engine_trade_line_draw_cancel_revision(void* engine);
+
+/// Clears any draft preview and bumps [chart_engine_trade_line_draw_cancel_revision].
+CHART_ENGINE_EXPORT void chart_engine_request_trade_line_draw_cancel(void* engine);
+
 #ifdef __cplusplus
 }
 #endif
