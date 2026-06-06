@@ -70,6 +70,10 @@ internal class ChartOverlayView(
         style = Paint.Style.FILL
         color = 0xFFFFD466.toInt()
     }
+    private val priceBadgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = 0xFF7CFFB2.toInt()
+    }
 
     private val xTicks = DoubleArray(32)
     private val yTicks = DoubleArray(32)
@@ -95,8 +99,8 @@ internal class ChartOverlayView(
 
     // Scratch buffers used to pull the engine's current style each time
     // style_revision changes. Sized to match the JNI nativeGetStyle* layout.
-    private val styleFloats = FloatArray(54)
-    private val styleInts = IntArray(14)
+    private val styleFloats = FloatArray(58)
+    private val styleInts = IntArray(16)
 
     /** When true, tooltip + marker anchor to finger while x-pan is locked (scrub). */
     private var scrubFingerActive = false
@@ -113,9 +117,14 @@ internal class ChartOverlayView(
     private var yDecimals = 2
     private var xIsTimestampMs = true
     private var seriesLabel = "CANDLE"
+    private var showCurrentPriceLine = true
 
     private val dateFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+    private val dateFmtMs = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
     private val df = StringBuilder()
+
+    private var dynamicYDecimals = 2
+    private var useMsForX = false
 
     private var scheduled = false
 
@@ -226,6 +235,7 @@ internal class ChartOverlayView(
         showLegend = styleInts[5] != 0
         yDecimals = styleInts[8]
         xIsTimestampMs = styleInts[9] != 0
+        showCurrentPriceLine = styleInts[14] != 0
 
         // floats layout: 12 RGBA colors followed by 6 geometry floats.
         // We only render axis text, legend text, tooltip, and the marker
@@ -236,6 +246,7 @@ internal class ChartOverlayView(
         tooltipBgPaint.color = rgbaToArgb(styleFloats, offset = 36)
         tooltipTextPaint.color = rgbaToArgb(styleFloats, offset = 40)
         legendTextPaint.color = rgbaToArgb(styleFloats, offset = 44)
+        priceBadgePaint.color = rgbaToArgb(styleFloats, offset = 54)
     }
 
     private fun refreshTicks() {
@@ -249,9 +260,34 @@ internal class ChartOverlayView(
         if (yTickCount > 0) {
             ChartEngineJni.nativeProjectY(chartEngineHandle, yTicks, yTickCount, yTickNdc)
         }
+
+        dynamicYDecimals = yDecimals
+        if (yTickCount > 1) {
+            val step = kotlin.math.abs(yTicks[1] - yTicks[0])
+            if (step > 0) {
+                val req = kotlin.math.ceil(-Math.log10(step)).toInt()
+                dynamicYDecimals = max(yDecimals, req)
+            }
+        }
+
+        useMsForX = false
+        if (xTickCount > 1) {
+            val step = kotlin.math.abs(xTicks[1] - xTicks[0])
+            if (step < 1000.0) {
+                useMsForX = true
+            }
+        }
     }
 
     private fun ndcOk(v: Double): Boolean = v >= -1.0 - 1e-5 && v <= 1.0 + 1e-5
+
+    /** Maps NDC Y into plot coordinates. Split-pane mapping only for candlestick + volume. */
+    private fun ndcToPlotY(ndcY: Double, plotTop: Float, plotH: Float, splitVolumePane: Boolean): Float =
+        if (splitVolumePane) {
+            plotTop + ((1.0 - (ndcY + 0.2) / 1.2) * plotH).toFloat()
+        } else {
+            plotTop + ((1.0 - (ndcY + 1.0) * 0.5) * plotH).toFloat()
+        }
 
     override fun onDraw(canvas: Canvas) {
         if (chartEngineHandle == 0L) return
@@ -272,6 +308,7 @@ internal class ChartOverlayView(
         val plotTop = if (useMargins) pt else 0f
         val plotRight = if (useMargins) pr else w
         val plotBottom = if (useMargins) pb else h
+        val splitVolumePane = ChartEngineJni.nativeHasVolumePane(chartEngineHandle) != 0
 
         if ((showXAxis || showYAxis) && useMargins) {
             if (showXAxis) {
@@ -315,7 +352,7 @@ internal class ChartOverlayView(
             for (i in 0 until yTickCount) {
                 val ndcY = yTickNdc[i]
                 if (!ndcOk(ndcY)) continue
-                val py = plotTop + ((1.0 - (ndcY + 1.0) * 0.5) * plotH).toFloat()
+                val py = ndcToPlotY(ndcY, plotTop, plotH, splitVolumePane)
                 val baselineY = py - (fm.ascent + fm.descent) / 2f
                 yRows.add(YRow(py, baselineY, formatY(yTicks[i])))
             }
@@ -330,6 +367,34 @@ internal class ChartOverlayView(
                 }
                 canvas.drawText(r.label, tx, r.baselineY, axisTextPaint)
                 lastInkBottom = r.baselineY + fm.bottom
+            }
+        }
+
+        if (showCurrentPriceLine && ChartEngineJni.nativeCandleCount(chartEngineHandle) > 0) {
+            val count = ChartEngineJni.nativeCandleCount(chartEngineHandle)
+            if (ChartEngineJni.nativeGetCandle(chartEngineHandle, count - 1, candle6) == 1) {
+                val closePrice = candle6[4]
+                val inY = doubleArrayOf(closePrice)
+                val outNdc = doubleArrayOf(0.0)
+                ChartEngineJni.nativeProjectY(chartEngineHandle, inY, 1, outNdc)
+                
+                if (ndcOk(outNdc[0])) {
+                    val py = ndcToPlotY(outNdc[0], plotTop, plotH, splitVolumePane)
+                    val labelStr = formatY(closePrice)
+                    val txtWidth = axisTextPaint.measureText(labelStr)
+                    val gutterPad = dp(4f)
+                    
+                    // We draw the badge exactly where the Y axis label would be, but full width of the label + padding.
+                    val badgeW = txtWidth + dp(8f)
+                    val badgeH = dp(18f)
+                    val badgeRect = RectF(plotLeft - badgeW - gutterPad, py - badgeH / 2f, plotLeft - gutterPad, py + badgeH / 2f)
+                    
+                    canvas.drawRoundRect(badgeRect, dp(4f), dp(4f), priceBadgePaint)
+                    
+                    val textY = py - ((axisTextPaint.fontMetrics.ascent + axisTextPaint.fontMetrics.descent) / 2f)
+                    // We need to use white or dark text depending on badge color. Let's just use tooltipTextPaint (usually white).
+                    canvas.drawText(labelStr, badgeRect.left + dp(4f), textY, tooltipTextPaint)
+                }
             }
         }
 
@@ -361,7 +426,9 @@ internal class ChartOverlayView(
             val snapMarkerX = pl + ((ndc[0] + 1.0) * 0.5 * plotW).toFloat()
             val ndcY = DoubleArray(1)
             ChartEngineJni.nativeProjectY(chartEngineHandle, doubleArrayOf(cl), 1, ndcY)
-            val snapMarkerY = pt + ((1.0 - (ndcY[0] + 1.0) * 0.5) * plotH).toFloat()
+            val snapMarkerY = ndcToPlotY(
+                ndcY[0], pt, plotH, ChartEngineJni.nativeHasVolumePane(chartEngineHandle) != 0,
+            )
 
             val markerX: Float
             val markerY: Float
@@ -416,19 +483,21 @@ internal class ChartOverlayView(
 
     private fun formatX(v: Double): String {
         if (xIsTimestampMs) {
-            return dateFmt.format(Date(v.toLong()))
+            val fmt = if (useMsForX) dateFmtMs else dateFmt
+            return fmt.format(Date(v.toLong()))
         }
         return formatY(v)
     }
 
     private fun formatY(v: Double): String {
         df.setLength(0)
-        if (yDecimals <= 0) {
+        val decimalsToUse = if (yDecimals <= 0) 0 else max(0, dynamicYDecimals)
+        if (decimalsToUse <= 0) {
             df.append(v.toLong().toString())
         } else {
-            val multiplier = pow10(yDecimals)
+            val multiplier = pow10(decimalsToUse)
             val rounded = kotlin.math.round(v * multiplier) / multiplier
-            df.append(String.format(Locale.US, "%.${yDecimals}f", rounded))
+            df.append(String.format(Locale.US, "%.${decimalsToUse}f", rounded))
         }
         return df.toString()
     }
