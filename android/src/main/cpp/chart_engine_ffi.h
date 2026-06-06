@@ -30,6 +30,24 @@ struct NativeCandle {
 #define CHART_PRIMITIVE_LINE_STRIP 2
 #define CHART_PRIMITIVE_TRIANGLE_STRIP 3
 
+// Trade line types. Must mirror Dart `TradeLineType`.
+#define CHART_TRADE_LINE_TREND 0
+#define CHART_TRADE_LINE_ENTRY 1
+#define CHART_TRADE_LINE_STOP_LOSS 2
+#define CHART_TRADE_LINE_TAKE_PROFIT 3
+
+/// POD trend / trade segment (two data-space endpoints + color).
+struct NativeTradeLine {
+  char order_id[32];
+  int type;
+  int _abi_pad;
+  double x1;
+  double y1;
+  double x2;
+  double y2;
+  float color[4];
+};
+
 // =========================================================================
 // ChartStyle (POD, ABI-stable).
 //
@@ -95,6 +113,18 @@ struct ChartStyle {
   // a single FFI call (no MethodChannel hop). The native overlay reads it
   // back via chart_engine_get_style on every style_revision bump.
   char series_label[32];
+
+  // -- Current price line (appended at tail for ABI compat) --
+  int show_current_price_line;         // 4 bytes
+  float current_price_line_color[4];   // 16 bytes  → total 20
+
+  int double_tap_to_reset;             // 4 bytes
+
+  // -- Current price line (appended at tail for ABI compat) --
+  int show_current_price_line;         // 4 bytes
+  float current_price_line_color[4];   // 16 bytes  → total 20
+
+  int double_tap_to_reset;             // 4 bytes
 };
 
 // --- Lifecycle ---

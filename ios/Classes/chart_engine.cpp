@@ -79,6 +79,10 @@ ChartStyle makeDefaultStyle() {
   s.allow_pan_y = 1;
   s.allow_zoom_x = 1;
   s.allow_zoom_y = 1;
+  s.show_current_price_line = 1;
+  setColor(s.current_price_line_color, 0.486f, 1.0f, 0.698f, 0.75f);
+
+  s.double_tap_to_reset = 1;
 
   std::memset(s.series_label, 0, sizeof(s.series_label));
   // Default series label; Dart can override per series via ChartStyle.seriesLabel.
@@ -144,6 +148,18 @@ struct ChartEngineState {
   long long style_revision = 0;
 
   double timeframe_interval_ms = 60000.0;
+
+  std::vector<NativeTradeLine> trade_lines;
+
+  bool trade_line_draft_active = false;
+  double trade_line_draft_x1 = 0.0;
+  double trade_line_draft_y1 = 0.0;
+  double trade_line_draft_x2 = 0.0;
+  double trade_line_draft_y2 = 0.0;
+
+  ChartTradeLineDrawEndCallback trade_line_draw_end_cb = nullptr;
+  void* trade_line_draw_end_user = nullptr;
+  long long trade_line_draw_cancel_revision = 0;
 
   /// Subtracted from baked world coords so float verts keep precision vs huge timestamps.
   double geom_vx_min_ = 0.0;
@@ -536,6 +552,46 @@ struct ChartEngineState {
     emitWorld(cur, data_x_max, c.close, col[0], col[1], col[2], col[3]);
   }
 
+  void buildCurrentPriceLineGeometry(PassData& p) {
+    p.primitive = CHART_PRIMITIVE_LINES;
+    p.vertices.clear();
+    if (candles.empty() || !style.show_current_price_line) return;
+
+    double currentPrice = candles.back().close;
+    const float* col = style.current_price_line_color;
+
+    p.vertices.resize(2 * kFloatsPerVertex);
+    float* cur = p.vertices.data();
+
+    emitWorld(cur, data_x_min, currentPrice, col[0], col[1], col[2], col[3]);
+    emitWorld(cur, data_x_max, currentPrice, col[0], col[1], col[2], col[3]);
+  }
+
+  void buildTradeLinesGeometry(PassData& p) {
+    p.primitive = CHART_PRIMITIVE_LINES;
+    p.vertices.clear();
+    if (trade_lines.empty()) return;
+
+    p.vertices.resize(trade_lines.size() * 2 * kFloatsPerVertex);
+    float* cur = p.vertices.data();
+
+    for (const auto& tl : trade_lines) {
+      emitWorld(cur, tl.x1, tl.y1, tl.color[0], tl.color[1], tl.color[2], tl.color[3]);
+      emitWorld(cur, tl.x2, tl.y2, tl.color[0], tl.color[1], tl.color[2], tl.color[3]);
+    }
+  }
+
+  void buildTradeLineDraftGeometry(PassData& p) {
+    p.primitive = CHART_PRIMITIVE_LINES;
+    p.vertices.clear();
+    if (!trade_line_draft_active) return;
+
+    const float* col = style.crosshair_color;
+    p.vertices.resize(2 * kFloatsPerVertex);
+    float* cur = p.vertices.data();
+    emitWorld(cur, trade_line_draft_x1, trade_line_draft_y1, col[0], col[1], col[2], col[3]);
+    emitWorld(cur, trade_line_draft_x2, trade_line_draft_y2, col[0], col[1], col[2], col[3]);
+  }
   void rebuildGeometry() {
     passes.clear();
     if (candles.empty()) {
@@ -578,10 +634,28 @@ struct ChartEngineState {
       }
     }
 
+    if (style.show_current_price_line && !candles.empty()) {
+      PassData priceLine;
+      buildCurrentPriceLineGeometry(priceLine);
+      if (!priceLine.vertices.empty()) passes.push_back(std::move(priceLine));
+    }
+
     if (style.show_crosshair && hover_index >= 0) {
       PassData crosshair;
       buildCrosshairGeometry(crosshair);
       if (!crosshair.vertices.empty()) passes.push_back(std::move(crosshair));
+    }
+
+    if (!trade_lines.empty()) {
+      PassData tradeLines;
+      buildTradeLinesGeometry(tradeLines);
+      if (!tradeLines.vertices.empty()) passes.push_back(std::move(tradeLines));
+    }
+
+    if (trade_line_draft_active) {
+      PassData draft;
+      buildTradeLineDraftGeometry(draft);
+      if (!draft.vertices.empty()) passes.push_back(std::move(draft));
     }
 
     ++generation;
@@ -979,6 +1053,155 @@ CHART_ENGINE_EXPORT void chart_engine_project_y(void* engine,
   for (int i = 0; i < count; ++i) {
     out_ndc[i] = (2.0 * (in_y[i] - yMin) / safe) - 1.0;
   }
+}
+
+CHART_ENGINE_EXPORT int chart_engine_has_volume_pane(void* engine) {
+  return 0;
+}
+
+CHART_ENGINE_EXPORT int chart_engine_pass_zone(void* engine, int pass) {
+  return 0;
+}
+
+CHART_ENGINE_EXPORT void chart_engine_get_price_projection_matrix(void* engine,
+                                                                    float out16[16]) {
+  if (engine == nullptr || out16 == nullptr) return;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  state->viewport.getProjectionMatrix(out16);
+}
+
+CHART_ENGINE_EXPORT void chart_engine_get_volume_projection_matrix(void* engine,
+                                                                    float out16[16]) {
+  if (engine == nullptr || out16 == nullptr) return;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  state->viewport.getProjectionMatrix(out16);
+}
+
+CHART_ENGINE_EXPORT double chart_engine_unproject_y(void* engine, double y_ndc) {
+  if (engine == nullptr) return 0.0;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  double yMin = 0.0;
+  double yMax = 0.0;
+  state->viewport.getVisibleRange(&yMin, &yMax);
+  const double h = yMax - yMin;
+  const double safe = (h == 0.0) ? 1.0 : h;
+  return yMin + (y_ndc + 1.0) * 0.5 * safe;
+}
+
+CHART_ENGINE_EXPORT double chart_engine_unproject_x(void* engine, double x_ndc) {
+  if (engine == nullptr) return 0.0;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  double xMin = 0.0;
+  double xMax = 0.0;
+  state->viewport.getVisibleDomain(&xMin, &xMax);
+  const double w = xMax - xMin;
+  const double safe = (w == 0.0) ? 1.0 : w;
+  return xMin + (x_ndc + 1.0) * 0.5 * safe;
+}
+
+CHART_ENGINE_EXPORT void chart_engine_sync_trade_lines(void* engine,
+                                                      const struct NativeTradeLine* lines,
+                                                      int count) {
+  if (engine == nullptr) return;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  std::lock_guard<std::mutex> lock(state->mtx);
+  state->trade_lines.clear();
+  if (lines != nullptr && count > 0) {
+    state->trade_lines.assign(lines, lines + count);
+  }
+  state->rebuildGeometry();
+}
+
+CHART_ENGINE_EXPORT void chart_engine_set_trade_line_draft(void* engine,
+                                                          int active,
+                                                          double x1,
+                                                          double y1,
+                                                          double x2,
+                                                          double y2) {
+  if (engine == nullptr) return;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  std::lock_guard<std::mutex> lock(state->mtx);
+  state->trade_line_draft_active = (active != 0);
+  state->trade_line_draft_x1 = x1;
+  state->trade_line_draft_y1 = y1;
+  state->trade_line_draft_x2 = x2;
+  state->trade_line_draft_y2 = y2;
+  state->rebuildGeometry();
+}
+
+CHART_ENGINE_EXPORT int chart_engine_trade_line_count(void* engine) {
+  if (engine == nullptr) return 0;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  std::lock_guard<std::mutex> lock(state->mtx);
+  return static_cast<int>(state->trade_lines.size());
+}
+
+CHART_ENGINE_EXPORT int chart_engine_get_trade_line(void* engine,
+                                                   int index,
+                                                   struct NativeTradeLine* out) {
+  if (engine == nullptr || out == nullptr || index < 0) return 0;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  std::lock_guard<std::mutex> lock(state->mtx);
+  if (index >= static_cast<int>(state->trade_lines.size())) return 0;
+  *out = state->trade_lines[static_cast<size_t>(index)];
+  return 1;
+}
+
+CHART_ENGINE_EXPORT void chart_engine_set_trade_line_draw_end_listener(
+    void* engine,
+    ChartTradeLineDrawEndCallback callback,
+    void* user_data) {
+  if (engine == nullptr) return;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  std::lock_guard<std::mutex> lock(state->mtx);
+  state->trade_line_draw_end_cb = callback;
+  state->trade_line_draw_end_user = user_data;
+}
+
+CHART_ENGINE_EXPORT void chart_engine_notify_trade_line_draw_end(void* engine,
+                                                                 double x1,
+                                                                 double y1,
+                                                                 double x2,
+                                                                 double y2) {
+  if (engine == nullptr) return;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  ChartTradeLineDrawEndCallback cb = nullptr;
+  void* user = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(state->mtx);
+    state->trade_line_draft_active = false;
+    state->trade_line_draft_x1 = 0.0;
+    state->trade_line_draft_y1 = 0.0;
+    state->trade_line_draft_x2 = 0.0;
+    state->trade_line_draft_y2 = 0.0;
+    state->rebuildGeometry();
+    cb = state->trade_line_draw_end_cb;
+    user = state->trade_line_draw_end_user;
+  }
+  if (cb != nullptr) {
+    cb(user, x1, y1, x2, y2);
+  }
+}
+
+CHART_ENGINE_EXPORT long long chart_engine_trade_line_draw_cancel_revision(void* engine) {
+  if (engine == nullptr) return 0;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  std::lock_guard<std::mutex> lock(state->mtx);
+  return state->trade_line_draw_cancel_revision;
+}
+
+CHART_ENGINE_EXPORT void chart_engine_request_trade_line_draw_cancel(void* engine) {
+  if (engine == nullptr) return;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  std::lock_guard<std::mutex> lock(state->mtx);
+  state->trade_line_draft_active = false;
+  state->trade_line_draft_x1 = 0.0;
+  state->trade_line_draft_y1 = 0.0;
+  state->trade_line_draft_x2 = 0.0;
+  state->trade_line_draft_y2 = 0.0;
+  ++state->trade_line_draw_cancel_revision;
+  state->rebuildGeometry();
+
 }
 
 }  // extern "C"

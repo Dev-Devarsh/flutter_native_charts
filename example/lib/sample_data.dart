@@ -72,6 +72,43 @@ Float64List generateCandlesRaw({
   return raw;
 }
 
+/// Like [generateCandles] but injects a few extreme volume spikes so the split
+/// volume pane (bottom 20%) is easy to see without overlapping price candles.
+List<Candle> generateCandlesWithVolumeSpikes({
+  required int count,
+  required double endTimeMs,
+  required double intervalMs,
+  double startPrice = 100.0,
+  int seed = 42,
+}) {
+  final candles = generateCandles(
+    count: count,
+    endTimeMs: endTimeMs,
+    intervalMs: intervalMs,
+    startPrice: startPrice,
+    seed: seed,
+  );
+  if (candles.length < 8) return candles;
+
+  final spikeIndices = {
+    candles.length ~/ 4,
+    candles.length ~/ 2,
+    (candles.length * 3) ~/ 4,
+  };
+  for (final i in spikeIndices) {
+    final c = candles[i];
+    candles[i] = Candle(
+      timestamp: c.timestamp,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      volume: c.volume * 18,
+    );
+  }
+  return candles;
+}
+
 /// Packs candles into `[t, o, h, l, c, v, …]` for [ChartController.pushCandlesRaw].
 Float64List candlesToRaw(List<Candle> candles) {
   final raw = Float64List(candles.length * 6);

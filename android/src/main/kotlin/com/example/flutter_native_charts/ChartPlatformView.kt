@@ -64,10 +64,24 @@ class ChartPlatformView(
     private val methodChannel: MethodChannel =
         MethodChannel(messenger, "$CHANNEL_PREFIX/$viewId")
 
-    private val styleScratchInts = IntArray(14)
+    private val styleScratchInts = IntArray(16)
 
     private var isResumed = false
     private var isDisposed = false
+    private var isScrubbing = false
+
+    private var isDrawingTradeLine = false
+    private var drawStartX = 0.0
+    private var drawStartY = 0.0
+    private var lastTradeLineDrawCancelRevision = 0L
+    private var longPressDownX = 0f
+    private var longPressDownY = 0f
+    private val longPressMs = 400L
+    private val longPressRunnable = Runnable {
+        if (isDrawingTradeLine) return@Runnable
+        if (!plotRect().contains(longPressDownX.toInt(), longPressDownY.toInt())) return@Runnable
+        beginTradeLineDraw(longPressDownX, longPressDownY)
+    }
 
     init {
         glSurfaceView.setEGLContextClientVersion(3)
@@ -98,6 +112,7 @@ class ChartPlatformView(
                     distanceX: Float,
                     distanceY: Float,
                 ): Boolean {
+                    if (isDrawingTradeLine) return true
                     ChartEngineJni.nativeGetStyleInts(chartEngineHandle, styleScratchInts)
                     val allowPanX = styleScratchInts[10] != 0
                     val allowPanY = styleScratchInts[11] != 0
@@ -117,8 +132,12 @@ class ChartPlatformView(
                         plotTop + plotHeightPx,
                     )
                     if (!allowPanX) {
+                        isScrubbing = true
                         if (plotRect.contains(e2.x.toInt(), e2.y.toInt())) {
                             applyScrubAt(e2.x, e2.y)
+                        } else {
+                            ChartEngineJni.nativeSetHover(chartEngineHandle, -1)
+                            overlay.clearScrubFinger()
                         }
                     } else if (ChartEngineJni.nativeGetHover(chartEngineHandle) >= 0) {
                         ChartEngineJni.nativeSetHover(chartEngineHandle, -1)
@@ -158,7 +177,11 @@ class ChartPlatformView(
                 }
 
                 override fun onDoubleTap(e: MotionEvent): Boolean {
-                    ViewportEngineJni.nativeReset(viewportHandle)
+                    ChartEngineJni.nativeGetStyleInts(chartEngineHandle, styleScratchInts)
+                    val allowDoubleTapReset = styleScratchInts[15] != 0
+                    if (allowDoubleTapReset) {
+                        ViewportEngineJni.nativeReset(viewportHandle)
+                    }
                     ChartEngineJni.nativeSetHover(chartEngineHandle, -1)
                     return true
                 }
@@ -207,6 +230,8 @@ class ChartPlatformView(
 
         attachTouchListener()
         registerMethodChannel()
+        lastTradeLineDrawCancelRevision =
+            ChartEngineJni.nativeTradeLineDrawCancelRevision(chartEngineHandle)
         resumeRendering()
     }
 
@@ -243,6 +268,82 @@ class ChartPlatformView(
         return 2.0 * nx - 1.0
     }
 
+    private fun touchToNdcY(y: Float): Double {
+        val h = plotHeightPx.coerceAtLeast(1)
+        val ny = ((y - plotTop) / h).toDouble().coerceIn(0.0, 1.0)
+        return 1.0 - 2.0 * ny
+    }
+
+    private fun plotRect(): android.graphics.Rect =
+        android.graphics.Rect(
+            plotLeft,
+            plotTop,
+            plotLeft + plotWidthPx,
+            plotTop + plotHeightPx,
+        )
+
+    private fun touchToData(x: Float, y: Float): Pair<Double, Double> {
+        val dataX = ChartEngineJni.nativeUnprojectX(chartEngineHandle, touchToNdcX(x))
+        val dataY = ChartEngineJni.nativeUnprojectY(chartEngineHandle, touchToNdcY(y))
+        return dataX to dataY
+    }
+
+    private fun resetTradeLineDrawing() {
+        root.removeCallbacks(longPressRunnable)
+        ChartEngineJni.nativeSetTradeLineDraft(chartEngineHandle, 0, 0.0, 0.0, 0.0, 0.0)
+        isDrawingTradeLine = false
+    }
+
+    private fun pollTradeLineDrawCancel() {
+        if (chartEngineHandle == 0L) return
+        val revision = ChartEngineJni.nativeTradeLineDrawCancelRevision(chartEngineHandle)
+        if (revision != lastTradeLineDrawCancelRevision) {
+            lastTradeLineDrawCancelRevision = revision
+            if (isDrawingTradeLine) {
+                resetTradeLineDrawing()
+            }
+        }
+    }
+
+    private fun beginTradeLineDraw(x: Float, y: Float) {
+        val (dx, dy) = touchToData(x, y)
+        drawStartX = dx
+        drawStartY = dy
+        isDrawingTradeLine = true
+        ChartEngineJni.nativeSetTradeLineDraft(chartEngineHandle, 1, dx, dy, dx, dy)
+    }
+
+    private fun updateTradeLineDraw(x: Float, y: Float) {
+        pollTradeLineDrawCancel()
+        if (!isDrawingTradeLine) return
+        val (ex, ey) = touchToData(x, y)
+        ChartEngineJni.nativeSetTradeLineDraft(
+            chartEngineHandle,
+            1,
+            drawStartX,
+            drawStartY,
+            ex,
+            ey,
+        )
+    }
+
+    private fun endTradeLineDraw(x: Float, y: Float) {
+        pollTradeLineDrawCancel()
+        if (!isDrawingTradeLine) return
+        val (ex, ey) = touchToData(x, y)
+        isDrawingTradeLine = false
+        ChartEngineJni.nativeNotifyTradeLineDrawEnd(
+            chartEngineHandle,
+            drawStartX,
+            drawStartY,
+            ex,
+            ey,
+        )
+    }
+
+    private fun cancelTradeLineDraw() {
+        resetTradeLineDrawing()
+    }
     private fun applyScrubAt(rawX: Float, rawY: Float) {
         val xNDC = touchToNdcX(rawX)
         val xDomain = DoubleArray(2)
@@ -263,11 +364,49 @@ class ChartPlatformView(
     private fun attachTouchListener() {
         root.setOnTouchListener { _, event ->
             val masked = event.actionMasked
-            if (masked == MotionEvent.ACTION_UP || masked == MotionEvent.ACTION_CANCEL) {
-                overlay.clearScrubFinger()
+            when (masked) {
+                MotionEvent.ACTION_DOWN -> {
+                    pollTradeLineDrawCancel()
+                    if (isDrawingTradeLine) {
+                        cancelTradeLineDraw()
+                    }
+                    longPressDownX = event.x
+                    longPressDownY = event.y
+                    root.removeCallbacks(longPressRunnable)
+                    root.postDelayed(longPressRunnable, longPressMs)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isDrawingTradeLine) {
+                        updateTradeLineDraw(event.x, event.y)
+                        return@setOnTouchListener true
+                    }
+                    val moved = kotlin.math.hypot(
+                        (event.x - longPressDownX).toDouble(),
+                        (event.y - longPressDownY).toDouble(),
+                    )
+                    if (moved > dp(10f)) {
+                        root.removeCallbacks(longPressRunnable)
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    root.removeCallbacks(longPressRunnable)
+                    if (isDrawingTradeLine) {
+                        if (masked == MotionEvent.ACTION_CANCEL) {
+                            cancelTradeLineDraw()
+                        } else {
+                            endTradeLineDraw(event.x, event.y)
+                        }
+                        return@setOnTouchListener true
+                    }
+                    overlay.clearScrubFinger()
+                    if (isScrubbing) {
+                        ChartEngineJni.nativeSetHover(chartEngineHandle, -1)
+                        isScrubbing = false
+                    }
+                }
             }
             scaleDetector.onTouchEvent(event)
-            if (!scaleDetector.isInProgress) {
+            if (!scaleDetector.isInProgress && !isDrawingTradeLine) {
                 gestureDetector.onTouchEvent(event)
             }
             true
@@ -317,3 +456,4 @@ class ChartPlatformView(
         }
     }
 }
+

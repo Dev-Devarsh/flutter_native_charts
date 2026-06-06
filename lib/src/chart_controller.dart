@@ -4,6 +4,7 @@ import 'ffi/chart_engine_ffi.dart';
 import 'models/candle.dart';
 import 'models/chart_style.dart';
 import 'models/series_type.dart';
+import 'models/trade_line.dart';
 
 /// Public controller bound to a single [NativeChartView].
 ///
@@ -42,6 +43,10 @@ class ChartController extends ChangeNotifier {
   SeriesType? _pendingSeriesType;
   ChartStyle _style;
   double? _pendingTimeframeMs;
+  List<TradeLine> _pendingTradeLines = const [];
+
+  /// Fired when the user releases after drawing a segment (via FFI callback).
+  void Function(double x1, double y1, double x2, double y2)? onTradeLineDrawEnd;
 
   /// Optional width for [NativeChartView] in **logical pixels**. Null lets
   /// the parent supply horizontal constraints only.
@@ -91,12 +96,20 @@ class ChartController extends ChangeNotifier {
     if (_pendingTimeframeMs != null) {
       _engine!.setTimeframeIntervalMs(_pendingTimeframeMs!);
     }
+    _engine!.syncTradeLines(_pendingTradeLines);
+    _engine!.setTradeLineDrawEndCallback(_dispatchTradeLineDrawEnd);
+    _engine!.requestTradeLineDrawCancel();
     notifyListeners();
+  }
+
+  void _dispatchTradeLineDrawEnd(double x1, double y1, double x2, double y2) {
+    onTradeLineDrawEnd?.call(x1, y1, x2, y2);
   }
 
   @protected
   void detachHandle() {
     if (_disposed) return;
+    _engine?.setTradeLineDrawEndCallback(null);
     _engine?.dispose();
     _engine = null;
     notifyListeners();
@@ -234,6 +247,20 @@ class ChartController extends ChangeNotifier {
 
   /// Full OHLCV when upstream already aggregates bars (**candles** use all
   /// fields; **line**/**area** still plot **close**).
+  /// Renders two-point trade/trend segments and clears any stale draw preview.
+  void setTradeLines(List<TradeLine> lines) {
+    if (_disposed) throw StateError('ChartController disposed');
+    _pendingTradeLines = List<TradeLine>.unmodifiable(lines);
+    _engine?.syncTradeLines(lines);
+    notifyListeners();
+  }
+
+  /// Clears an in-progress native draw session (preview + gesture flags).
+  void clearTradeLineDrawing() {
+    if (_disposed) return;
+    _engine?.requestTradeLineDrawCancel();
+  }
+
   void updateLiveOhlc({
     required double timestamp,
     required double open,
