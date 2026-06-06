@@ -230,9 +230,6 @@ final class NativeChartStyle extends ffi.Struct {
   external int showCurrentPriceLine;
   @ffi.Array(4)
   external ffi.Array<ffi.Float> currentPriceLineColor;
-
-  @ffi.Int32()
-  external int doubleTapToReset;
 }
 
 ffi.DynamicLibrary _openChartEngineLibrary() {
