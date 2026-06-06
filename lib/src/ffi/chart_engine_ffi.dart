@@ -161,6 +161,14 @@ final class NativeChartStyle extends ffi.Struct {
   /// single FFI call (no MethodChannel hop, no Flutter main-thread work).
   @ffi.Array(32)
   external ffi.Array<ffi.Uint8> seriesLabel;
+
+  @ffi.Int32()
+  external int showCurrentPriceLine;
+  @ffi.Array(4)
+  external ffi.Array<ffi.Float> currentPriceLineColor;
+
+  @ffi.Int32()
+  external int doubleTapToReset;
 }
 
 ffi.DynamicLibrary _openChartEngineLibrary() {
@@ -396,6 +404,11 @@ class ChartEngineFfi {
       s.allowZoomY = style.allowZoomY ? 1 : 0;
 
       _writeSeriesLabel(s.seriesLabel, style.seriesLabel);
+
+      s.showCurrentPriceLine = style.showCurrentPriceLine ? 1 : 0;
+      _writeColor(s.currentPriceLineColor, style.currentPriceLineColor);
+
+      s.doubleTapToReset = style.doubleTapToReset ? 1 : 0;
 
       _setStyle(_engine, ptr);
     } finally {

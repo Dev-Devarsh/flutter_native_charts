@@ -39,7 +39,10 @@ class ChartStyle {
     this.allowPanY = false,
     this.allowZoomX = true,
     this.allowZoomY = false,
+    this.doubleTapToReset = true,
     this.seriesLabel = 'CANDLE',
+    this.showCurrentPriceLine = true,
+    this.currentPriceLineColor = const Color(0xBF7CFFB2),
   });
 
   final Color bgColor;
@@ -78,8 +81,12 @@ class ChartStyle {
   final bool allowPanY;
   final bool allowZoomX;
   final bool allowZoomY;
+  final bool doubleTapToReset;
 
   final String seriesLabel;
+
+  final bool showCurrentPriceLine;
+  final Color currentPriceLineColor;
 
   ChartStyle copyWith({
     Color? bgColor,
@@ -114,7 +121,10 @@ class ChartStyle {
     bool? allowPanY,
     bool? allowZoomX,
     bool? allowZoomY,
+    bool? doubleTapToReset,
     String? seriesLabel,
+    bool? showCurrentPriceLine,
+    Color? currentPriceLineColor,
   }) {
     return ChartStyle(
       bgColor: bgColor ?? this.bgColor,
@@ -149,7 +159,10 @@ class ChartStyle {
       allowPanY: allowPanY ?? this.allowPanY,
       allowZoomX: allowZoomX ?? this.allowZoomX,
       allowZoomY: allowZoomY ?? this.allowZoomY,
+      doubleTapToReset: doubleTapToReset ?? this.doubleTapToReset,
       seriesLabel: seriesLabel ?? this.seriesLabel,
+      showCurrentPriceLine: showCurrentPriceLine ?? this.showCurrentPriceLine,
+      currentPriceLineColor: currentPriceLineColor ?? this.currentPriceLineColor,
     );
   }
 }
