@@ -25,15 +25,15 @@ extension DemoKindX on DemoKind {
     DemoKind.candleDataFeed =>
       'OHLC candlesticks loaded in one shot via pushCandlesRaw (180 bars). Pan and zoom to explore history.',
     DemoKind.candleLive =>
-      'Starts with a short history, then streams ticks through updateLivePrice over FFI (1-minute buckets).',
+      'Live ticks via updateLivePrice (1-minute buckets) with GPU price tracer line and Y-axis badge.',
     DemoKind.areaDataFeed =>
       'Gradient area chart filled from a bulk pushCandlesRaw snapshot. Close drives the filled region.',
     DemoKind.areaLive =>
-      'Area series with live close updates via updateLivePrice as new trades arrive.',
+      'Area series with live close updates and the live price tracer (line + Y-axis badge).',
     DemoKind.lineDataFeed =>
       'Line stroke from a single bulk FFI load. Ideal for static close-price series.',
     DemoKind.lineLive =>
-      'Line series fed by updateLivePrice — only close moves; open/high/low ignored for drawing.',
+      'Line series fed by updateLivePrice with live price tracer; only close moves for the stroke.',
   };
 
   IconData get icon => switch (this) {
