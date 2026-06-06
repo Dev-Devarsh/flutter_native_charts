@@ -79,6 +79,10 @@ ChartStyle makeDefaultStyle() {
   s.allow_pan_y = 1;
   s.allow_zoom_x = 1;
   s.allow_zoom_y = 1;
+  s.show_current_price_line = 1;
+  setColor(s.current_price_line_color, 0.486f, 1.0f, 0.698f, 0.75f);
+
+  s.double_tap_to_reset = 1;
 
   std::memset(s.series_label, 0, sizeof(s.series_label));
   // Default series label; Dart can override per series via ChartStyle.seriesLabel.
@@ -536,6 +540,21 @@ struct ChartEngineState {
     emitWorld(cur, data_x_max, c.close, col[0], col[1], col[2], col[3]);
   }
 
+  void buildCurrentPriceLineGeometry(PassData& p) {
+    p.primitive = CHART_PRIMITIVE_LINES;
+    p.vertices.clear();
+    if (candles.empty() || !style.show_current_price_line) return;
+
+    double currentPrice = candles.back().close;
+    const float* col = style.current_price_line_color;
+
+    p.vertices.resize(2 * kFloatsPerVertex);
+    float* cur = p.vertices.data();
+
+    emitWorld(cur, data_x_min, currentPrice, col[0], col[1], col[2], col[3]);
+    emitWorld(cur, data_x_max, currentPrice, col[0], col[1], col[2], col[3]);
+  }
+
   void rebuildGeometry() {
     passes.clear();
     if (candles.empty()) {
@@ -576,6 +595,12 @@ struct ChartEngineState {
         if (!wick.vertices.empty()) passes.push_back(std::move(wick));
         break;
       }
+    }
+
+    if (style.show_current_price_line && !candles.empty()) {
+      PassData priceLine;
+      buildCurrentPriceLineGeometry(priceLine);
+      if (!priceLine.vertices.empty()) passes.push_back(std::move(priceLine));
     }
 
     if (style.show_crosshair && hover_index >= 0) {
@@ -979,6 +1004,48 @@ CHART_ENGINE_EXPORT void chart_engine_project_y(void* engine,
   for (int i = 0; i < count; ++i) {
     out_ndc[i] = (2.0 * (in_y[i] - yMin) / safe) - 1.0;
   }
+}
+
+CHART_ENGINE_EXPORT int chart_engine_has_volume_pane(void* engine) {
+  return 0;
+}
+
+CHART_ENGINE_EXPORT int chart_engine_pass_zone(void* engine, int pass) {
+  return 0;
+}
+
+CHART_ENGINE_EXPORT void chart_engine_get_price_projection_matrix(void* engine,
+                                                                    float out16[16]) {
+  if (engine == nullptr || out16 == nullptr) return;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  state->viewport.getProjectionMatrix(out16);
+}
+
+CHART_ENGINE_EXPORT void chart_engine_get_volume_projection_matrix(void* engine,
+                                                                    float out16[16]) {
+  if (engine == nullptr || out16 == nullptr) return;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  state->viewport.getProjectionMatrix(out16);
+}
+
+CHART_ENGINE_EXPORT double chart_engine_unproject_y(void* engine, double yNdc) {
+  if (engine == nullptr) return 0.0;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  double yMin, yMax;
+  state->viewport.getVisibleRange(&yMin, &yMax);
+  const double h = yMax - yMin;
+  const double safe = (h == 0.0) ? 1.0 : h;
+  return yMin + (yNdc + 1.0) * 0.5 * safe;
+}
+
+CHART_ENGINE_EXPORT double chart_engine_unproject_x(void* engine, double xNdc) {
+  if (engine == nullptr) return 0.0;
+  auto* state = static_cast<ChartEngineState*>(engine);
+  double xMin, xMax;
+  state->viewport.getVisibleDomain(&xMin, &xMax);
+  const double w = xMax - xMin;
+  const double safe = (w == 0.0) ? 1.0 : w;
+  return xMin + (xNdc + 1.0) * 0.5 * safe;
 }
 
 }  // extern "C"
