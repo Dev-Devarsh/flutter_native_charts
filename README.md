@@ -8,14 +8,88 @@ High-performance **financial / time-series charts** for Flutter on **Android** a
 
 Screen recordings from the **`example/`** app (candle presets). Open each file in the repo to play inline on GitHub, or download locally.
 
-| Recording | File | What it shows |
-|-----------|------|----------------|
-| **Candle · data feed** | [`candle_simple.mp4`](./doc/videos/candle_simple.mp4) | Bulk history via **`pushCandlesRaw`**, then smooth pan and zoom over a static OHLC series. |
-| **Candle · live** | [`candle_live.mp4`](./doc/videos/candle_live.mp4) | Short seeded history, then **`updateLivePrice`** streaming over FFI into rolling 1‑minute buckets. |
+| Candle · data feed | Candle · live |
+|:---:|:---:|
+| <video src="https://raw.githubusercontent.com/Dev-Devarsh/flutter_native_charts/main/doc/videos/candle_simple.mp4" autoplay loop muted playsinline></video> | <video src="https://raw.githubusercontent.com/Dev-Devarsh/flutter_native_charts/main/doc/videos/candle_live.mp4" autoplay loop muted playsinline></video> |
+| Bulk history via **`pushCandlesRaw`**, then smooth pan and zoom over a static OHLC series. | Short seeded history, then **`updateLivePrice`** streaming over FFI into rolling 1‑minute buckets. |
 
 **Frame rate:** both clips were captured in **Flutter debug mode**, where you should expect on the order of **~60 FPS** during interaction. **Release** builds (`flutter run --release` / profile store builds) drop debug assertions and JIT overhead, so the same chart can often reach **up to ~120 FPS** on capable hardware—exact numbers depend on device, dataset size, and how aggressively you pan or zoom.
 
 Run the same flows yourself from **`example/`** → **Candle · Data feed** and **Candle · Live** on the home screen.
+
+### Live price tracer (v0.0.2)
+
+A **horizontal line** at the active candle’s **close** spans the plot (GPU `CHART_PRIMITIVE_LINES`). A **colored badge** on the Y-axis shows the same numeric price, projected in screen space so it stays aligned during pan and zoom.
+
+```dart
+ChartController(
+  style: const ChartStyle(
+    showCurrentPriceLine: true,
+    currentPriceLineColor: Color(0xBF7CFFB2),
+  ),
+);
+// Disable: controller.setStyle(controller.style.copyWith(showCurrentPriceLine: false));
+```
+
+In **`example/`**, open any **· Live** demo (Candle, Area, or Line) — the tracer is on by default. Toggle **Price line** from the tune (customization) sheet.
+
+### Interactive trade lines (v0.0.3)
+
+Visualize **entry**, **stop loss**, and **take profit** levels (or arbitrary **trend** segments) as GPU line primitives. Segments are defined in **chart data space** (`x` = time or index, `y` = price) and stay aligned while panning and zooming.
+
+**Push order lines from Dart** (use the same `y` at both endpoints for a horizontal level across a time window):
+
+```dart
+final t0 = candles.first.timestamp;
+final t1 = candles.last.timestamp;
+
+chart.setTradeLines([
+  TradeLine(
+    orderId: 'entry-1',
+    type: TradeLineType.entry,
+    x1: t0,
+    y1: 102.5,
+    x2: t1,
+    y2: 102.5,
+  ),
+  TradeLine(
+    orderId: 'sl-1',
+    type: TradeLineType.stopLoss,
+    x1: t0,
+    y1: 98.0,
+    x2: t1,
+    y2: 98.0,
+  ),
+  TradeLine(
+    orderId: 'tp-1',
+    type: TradeLineType.takeProfit,
+    x1: t0,
+    y1: 108.0,
+    x2: t1,
+    y2: 108.0,
+  ),
+]);
+```
+
+**Draw a segment on the chart** (TradingView-style): touch and hold on the plot, drag to the second point, release. The native layer shows a live preview and **does not pan** the viewport while drawing. Wire the result in Dart:
+
+```dart
+chart.onTradeLineDrawEnd = (x1, y1, x2, y2) {
+  final line = TradeLine(
+    orderId: 'trend-${DateTime.now().millisecondsSinceEpoch}',
+    type: TradeLineType.trend,
+    x1: x1,
+    y1: y1,
+    x2: x2,
+    y2: y2,
+  );
+  chart.setTradeLines([...existing, line]);
+};
+```
+
+Clear a stale draw session: **`chart.clearTradeLineDrawing()`**. Remove all segments: **`chart.setTradeLines([])`**.
+
+In **`example/`**, open **Trade lines · draw segment** on the home screen.
 
 ## Ideal Use Cases
 
@@ -262,6 +336,8 @@ Apply changes with **`controller.setStyle(…)`** or **`chart.style.copyWith(…
 | **`showCrosshair`** | `bool` | Hover/scrub vertical/horizontal GPU crosshair and marker participation. |
 | **`showTooltip`** | `bool` | Native OHLC/tooltip bubble when hovering or scrubbing. |
 | **`showLegend`** | `bool` | Top-left-style **series legend** badge (native overlay; uses `seriesLabel`). |
+| **`showCurrentPriceLine`** | `bool` | Draw the **live price tracer**: GPU horizontal line at the latest candle **close** plus matching Y-axis badge (native overlay). |
+| **`currentPriceLineColor`** | `Color` | RGBA tint for the tracer line (GPU) and Y-axis badge fill (overlay uses the same style revision). |
 
 ### `ChartStyle` — ticks & formatting
 
@@ -304,7 +380,24 @@ Constructor: **`ChartController({ ChartStyle? style, double? layoutWidth, double
 | **`setTimeframe(Duration interval)`** | Bar bucket width (**ms**) for **`updateLivePrice`** / live OHLC rollup (native default aligns to **60 s** until overridden). Interval must be **positive** and finite (`Duration` internally converted via microseconds → ms float). |
 | **`updateLivePrice({ price, timestamp, volume })`** | Tick path: mutate current bucket’s OHLC (**open** pinned, **close** refreshed, **high/low** widen, **volume** summed). Throws if **not attached**. |
 | **`updateLiveOhlc(...)`** | Full aggregated bar mutation when upstream already has OHLC. |
+| **`setTradeLines(List<TradeLine> lines)`** | Syncs segment geometry to C++ via FFI (`NativeTradeLine` POD, **`calloc`** then **`free`** per call). Clears any in-progress draw preview when the list is empty. |
+| **`clearTradeLineDrawing()`** | Cancels native touch-and-hold draw state and draft preview. |
 | **`dispose()`** | Releases native FFI handle backing and disables further calls; always **`dispose`** the controller bound to each view lifecycle. |
+
+| Callback | Meaning |
+|----------|--------|
+| **`onTradeLineDrawEnd`** | Optional `void Function(double x1, double y1, double x2, double y2)?` — fired when the user finishes a native draw gesture (data-space endpoints). |
+
+### `TradeLine` & `TradeLineType`
+
+| Field / value | Meaning |
+|---------------|--------|
+| **`orderId`** | Stable id (max **31 UTF-8 bytes**; maps to C `order_id[32]`). |
+| **`type`** | **`TradeLineType.trend`** (0), **`.entry`** (1), **`.stopLoss`** (2), **`.takeProfit`** (3) — drives default color when **`color`** is null. |
+| **`x1` / `y1` / `x2` / `y2`** | Segment endpoints in chart data coordinates (typically epoch ms for X). |
+| **`color`** | Optional override; otherwise **`TradeLine.defaultColorFor(type)`** (entry/trend blue `#4A9EFF`, SL red `#FF6161`, TP green `#4ADE80`). |
+
+Horizontal order levels: set **`y1 == y2`** and span your visible time range with **`x1`** / **`x2`**.
 
 ### `NativeChartView`
 
@@ -341,7 +434,8 @@ Native enum **`0` / `1` / `2`** — see `SeriesType.nativeValue`.
 | Topic | Detail |
 |-------|--------|
 | **GPU** | Metal (iOS) / GLES3 (Android) draws chart geometry natively inside a `PlatformView`. |
-| **Data path** | `dart:ffi` for candles, style, series, hover, live ticks — **not** `MethodChannel` / `EventChannel` for chart feeds. |
+| **Data path** | `dart:ffi` for candles, style, series, hover, live ticks, trade lines — **not** `MethodChannel` / `EventChannel` for chart feeds. |
+| **Trade lines** | `setTradeLines` + optional native draw gesture; GPU `CHART_PRIMITIVE_LINES` per segment. |
 | **One MethodChannel call** | `getEngineHandle` per view instance only. |
 | **Flutter limitations addressed** | Reduces reliance on Dart `Canvas`/bridge serialization for dense, interactive charts. |
 | **Lightweight Dart** | No Material import required for `NativeChartView`; depends on **`ffi`** plus Flutter SDK only. |

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'chart_demo_screen.dart';
 import 'demo_kind.dart';
+import 'trade_lines_demo_screen.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -21,24 +22,89 @@ class HomePage extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           Text(
+            'Interactive trade lines',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: const Color(0xFF8D93A2)),
+          ),
+          const SizedBox(height: 10),
+          const _TradeLinesFeaturedTile(),
+          const SizedBox(height: 12),
+          Text(
             'Six demos — each series type in data-feed and live mode.',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(color: const Color(0xFF8D93A2)),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: const Color(0xFF8D93A2)),
           ),
           const SizedBox(height: 16),
-          ..._demos.map(
-            (kind) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _DemoTile(kind: kind),
-            ),
-          ),
+          ..._demos.map((kind) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _DemoTile(kind: kind),
+              )),
         ],
       ),
     );
   }
 }
 
+class _TradeLinesFeaturedTile extends StatelessWidget {
+  const _TradeLinesFeaturedTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF12161F),
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const TradeLinesDemoScreen()),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A2238),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.drag_handle, color: Color(0xFF4A9EFF)),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Trade lines · draw segment',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        _Badge(label: 'NEW', color: Color(0xFF4A9EFF)),
+                      ],
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Touch and hold on the chart, drag to the second point, and release '
+                      'to draw a straight trend line (TradingView-style).',
+                      style: TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF8D93A2)),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Color(0xFF8D93A2)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 class _DemoTile extends StatelessWidget {
   const _DemoTile({required this.kind});
 

@@ -93,10 +93,25 @@ void ViewportEngine::zoomNDC(double scaleX, double scaleY, double focusXNDC, dou
   const double focusXData = cx + focusXNDC * hx;
   const double focusYData = cy + focusYNDC * hy;
 
-  vis_x_min_ = focusXData - (focusXData - vis_x_min_) / scaleX;
-  vis_x_max_ = focusXData + (vis_x_max_ - focusXData) / scaleX;
-  vis_y_min_ = focusYData - (focusYData - vis_y_min_) / scaleY;
-  vis_y_max_ = focusYData + (vis_y_max_ - focusYData) / scaleY;
+  double next_vis_x_min = focusXData - (focusXData - vis_x_min_) / scaleX;
+  double next_vis_x_max = focusXData + (vis_x_max_ - focusXData) / scaleX;
+  double next_vis_y_min = focusYData - (focusYData - vis_y_min_) / scaleY;
+  double next_vis_y_max = focusYData + (vis_y_max_ - focusYData) / scaleY;
+
+  // Restrict Y axis zoom when Y axis label decimal point exceeds 3 digits
+  // 3 decimal places correspond to a step of 0.001, so minimum visible range for 5 ticks is ~0.005.
+  if (next_vis_y_max - next_vis_y_min < 0.005) {
+    if (next_vis_y_max - next_vis_y_min < vis_y_max_ - vis_y_min_) {
+      next_vis_y_min = vis_y_min_;
+      next_vis_y_max = vis_y_max_;
+    }
+  }
+
+  vis_x_min_ = next_vis_x_min;
+  vis_x_max_ = next_vis_x_max;
+  vis_y_min_ = next_vis_y_min;
+  vis_y_max_ = next_vis_y_max;
+
   clampVisibleToData_();
   ++revision_;
 }

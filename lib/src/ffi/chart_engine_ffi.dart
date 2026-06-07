@@ -9,6 +9,34 @@ import 'package:ffi/ffi.dart';
 import '../models/candle.dart';
 import '../models/chart_style.dart';
 import '../models/series_type.dart';
+import '../models/trade_line.dart';
+
+/// FFI mirror of C `NativeTradeLine` (two-point segment).
+final class NativeTradeLine extends ffi.Struct {
+  @ffi.Array(32)
+  external ffi.Array<ffi.Int8> orderId;
+
+  @ffi.Int32()
+  external int type;
+
+  @ffi.Int32()
+  external int abiPad;
+
+  @ffi.Double()
+  external double x1;
+
+  @ffi.Double()
+  external double y1;
+
+  @ffi.Double()
+  external double x2;
+
+  @ffi.Double()
+  external double y2;
+
+  @ffi.Array(4)
+  external ffi.Array<ffi.Float> color;
+}
 
 final class NativeCandle extends ffi.Struct {
   @ffi.Double()
@@ -81,6 +109,40 @@ typedef _UpdateLiveOhlcDart =
 typedef _SetStyleNative =
     ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<NativeChartStyle> style);
 typedef _SetStyleDart = void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<NativeChartStyle> style);
+
+typedef _SyncTradeLinesNative =
+    ffi.Void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<NativeTradeLine> lines,
+      ffi.Int32 count,
+    );
+typedef _SyncTradeLinesDart =
+    void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<NativeTradeLine> lines, int count);
+
+typedef _TradeLineDrawEndCallbackNative =
+    ffi.Void Function(
+      ffi.Pointer<ffi.Void> userData,
+      ffi.Double x1,
+      ffi.Double y1,
+      ffi.Double x2,
+      ffi.Double y2,
+    );
+
+typedef _SetTradeLineDrawEndListenerNative =
+    ffi.Void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<ffi.NativeFunction<_TradeLineDrawEndCallbackNative>> callback,
+      ffi.Pointer<ffi.Void> userData,
+    );
+typedef _SetTradeLineDrawEndListenerDart =
+    void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<ffi.NativeFunction<_TradeLineDrawEndCallbackNative>> callback,
+      ffi.Pointer<ffi.Void> userData,
+    );
+
+typedef _RequestTradeLineDrawCancelNative = ffi.Void Function(ffi.Pointer<ffi.Void> engine);
+typedef _RequestTradeLineDrawCancelDart = void Function(ffi.Pointer<ffi.Void> engine);
 
 /// FFI mirror of the C `ChartStyle` struct. Keep field order, types, and
 /// counts identical to chart_engine_ffi.h.
@@ -155,12 +217,19 @@ final class NativeChartStyle extends ffi.Struct {
   external int allowZoomX;
   @ffi.Int32()
   external int allowZoomY;
+  @ffi.Int32()
+  external int doubleTapToReset;
 
   /// UTF-8, null-terminated. Max 31 chars + '\0'. Lives in the style struct
   /// so the series label flows Dart -> engine -> native overlay via a
   /// single FFI call (no MethodChannel hop, no Flutter main-thread work).
   @ffi.Array(32)
   external ffi.Array<ffi.Uint8> seriesLabel;
+
+  @ffi.Int32()
+  external int showCurrentPriceLine;
+  @ffi.Array(4)
+  external ffi.Array<ffi.Float> currentPriceLineColor;
 }
 
 ffi.DynamicLibrary _openChartEngineLibrary() {
@@ -208,6 +277,21 @@ class ChartEngineFfi {
       'chart_engine_update_live_ohlc',
     );
     _setStyle = _lib.lookupFunction<_SetStyleNative, _SetStyleDart>('chart_engine_set_style');
+    _syncTradeLines = _lib.lookupFunction<_SyncTradeLinesNative, _SyncTradeLinesDart>(
+      'chart_engine_sync_trade_lines',
+    );
+    _setTradeLineDrawEndListener = _lib.lookupFunction<
+      _SetTradeLineDrawEndListenerNative,
+      _SetTradeLineDrawEndListenerDart
+    >('chart_engine_set_trade_line_draw_end_listener');
+    _requestTradeLineDrawCancel = _lib.lookupFunction<
+      _RequestTradeLineDrawCancelNative,
+      _RequestTradeLineDrawCancelDart
+    >('chart_engine_request_trade_line_draw_cancel');
+    _drawEndCallable = ffi.NativeCallable<_TradeLineDrawEndCallbackNative>.listener(
+      _onTradeLineDrawEndNative,
+    );
+    _setTradeLineDrawEndListener(_engine, _drawEndCallable!.nativeFunction, ffi.nullptr);
   }
 
   final ffi.DynamicLibrary _lib;
@@ -222,6 +306,12 @@ class ChartEngineFfi {
   late final _UpdateLiveTickDart _updateLiveTick;
   late final _UpdateLiveOhlcDart _updateLiveOhlc;
   late final _SetStyleDart _setStyle;
+  late final _SyncTradeLinesDart _syncTradeLines;
+  late final _SetTradeLineDrawEndListenerDart _setTradeLineDrawEndListener;
+  late final _RequestTradeLineDrawCancelDart _requestTradeLineDrawCancel;
+
+  ffi.NativeCallable<_TradeLineDrawEndCallbackNative>? _drawEndCallable;
+  void Function(double x1, double y1, double x2, double y2)? _tradeLineDrawEndCallback;
 
   bool _disposed = false;
 
@@ -350,6 +440,59 @@ class ChartEngineFfi {
     _updateLiveOhlc(_engine, timestamp, open, high, low, close, volume);
   }
 
+  /// Clears any in-progress segment preview and signals native gesture code to
+  /// abort an active draw session (via cancel-revision polling).
+  void requestTradeLineDrawCancel() {
+    if (_disposed) return;
+    _requestTradeLineDrawCancel(_engine);
+  }
+
+  /// FFI listener invoked once when the user releases after drawing a segment.
+  /// Preview updates during drag stay entirely on the native side.
+  void setTradeLineDrawEndCallback(void Function(double x1, double y1, double x2, double y2)? callback) {
+    _tradeLineDrawEndCallback = callback;
+  }
+
+  void _onTradeLineDrawEndNative(
+    ffi.Pointer<ffi.Void> _,
+    double x1,
+    double y1,
+    double x2,
+    double y2,
+  ) {
+    _tradeLineDrawEndCallback?.call(x1, y1, x2, y2);
+  }
+
+  /// Pushes two-point trade/trend segments to the engine. Memory is allocated
+  /// with [calloc] and freed before this method returns.
+  void syncTradeLines(List<TradeLine> lines) {
+    if (_disposed) return;
+    final count = lines.length;
+    if (count == 0) {
+      requestTradeLineDrawCancel();
+      _syncTradeLines(_engine, ffi.nullptr, 0);
+      return;
+    }
+    final pointer = calloc<NativeTradeLine>(count);
+    try {
+      for (int i = 0; i < count; i++) {
+        final tl = lines[i];
+        final native = pointer + i;
+        _writeOrderId(native.ref.orderId, tl.orderId);
+        native.ref.type = tl.type.nativeValue;
+        native.ref.abiPad = 0;
+        native.ref.x1 = tl.x1;
+        native.ref.y1 = tl.y1;
+        native.ref.x2 = tl.x2;
+        native.ref.y2 = tl.y2;
+        _writeColor(native.ref.color, tl.resolvedColor());
+      }
+      _syncTradeLines(_engine, pointer, count);
+    } finally {
+      calloc.free(pointer);
+    }
+  }
+
   /// Push the visual configuration to the engine. Affects geometry colors,
   /// paddings, candle width, tick density, visibility toggles.
   void setStyle(ChartStyle style) {
@@ -394,8 +537,17 @@ class ChartEngineFfi {
       s.allowPanY = style.allowPanY ? 1 : 0;
       s.allowZoomX = style.allowZoomX ? 1 : 0;
       s.allowZoomY = style.allowZoomY ? 1 : 0;
+      s.doubleTapToReset = style.doubleTapToReset ? 1 : 0;
+
+      s.showCurrentPriceLine = style.showCurrentPriceLine ? 1 : 0;
+      _writeColor(s.currentPriceLineColor, style.currentPriceLineColor);
 
       _writeSeriesLabel(s.seriesLabel, style.seriesLabel);
+
+      s.showCurrentPriceLine = style.showCurrentPriceLine ? 1 : 0;
+      _writeColor(s.currentPriceLineColor, style.currentPriceLineColor);
+
+      s.doubleTapToReset = style.doubleTapToReset ? 1 : 0;
 
       _setStyle(_engine, ptr);
     } finally {
@@ -414,6 +566,18 @@ class ChartEngineFfi {
   /// Writes a UTF-8, null-terminated copy of [label] into the fixed-size
   /// [arr] (32 bytes). Truncates to 31 bytes if necessary. Zero-pads the
   /// remainder so the C side always reads a clean C-string.
+  static void _writeOrderId(ffi.Array<ffi.Int8> arr, String orderId) {
+    final encoded = utf8.encode(orderId);
+    const int capacity = 32;
+    final int maxBytes = (encoded.length < capacity - 1) ? encoded.length : capacity - 1;
+    for (int i = 0; i < maxBytes; i++) {
+      arr[i] = encoded[i];
+    }
+    for (int i = maxBytes; i < capacity; i++) {
+      arr[i] = 0;
+    }
+  }
+
   static void _writeSeriesLabel(ffi.Array<ffi.Uint8> arr, String label) {
     final encoded = utf8.encode(label);
     const int capacity = 32;
@@ -429,6 +593,10 @@ class ChartEngineFfi {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _tradeLineDrawEndCallback = null;
+    _setTradeLineDrawEndListener(_engine, ffi.nullptr, ffi.nullptr);
+    _drawEndCallable?.close();
+    _drawEndCallable = null;
     if (_scratchCapacityDoubles > 0) {
       malloc.free(_scratch);
       _scratch = ffi.nullptr;

@@ -122,6 +122,28 @@
   chart_engine_project_y(_engine, inY, count, outNdc);
 }
 
+- (double)unprojectX:(double)xNdc {
+  return chart_engine_unproject_x(_engine, xNdc);
+}
+
+- (double)unprojectY:(double)yNdc {
+  return chart_engine_unproject_y(_engine, yNdc);
+}
+
+- (void)setTradeLineDraftActive:(BOOL)active
+                             x1:(double)x1 y1:(double)y1
+                             x2:(double)x2 y2:(double)y2 {
+  chart_engine_set_trade_line_draft(_engine, active ? 1 : 0, x1, y1, x2, y2);
+}
+
+- (void)notifyTradeLineDrawEndWithX1:(double)x1 y1:(double)y1 x2:(double)x2 y2:(double)y2 {
+  chart_engine_notify_trade_line_draw_end(_engine, x1, y1, x2, y2);
+}
+
+- (long long)tradeLineDrawCancelRevision {
+  return chart_engine_trade_line_draw_cancel_revision(_engine);
+}
+
 - (void)setStyleFloats:(const float *)floats floatCount:(int)floatCount
                   ints:(const int *)ints intCount:(int)intCount
            seriesLabel:(NSString *)seriesLabel {
@@ -146,6 +168,9 @@
     style.crosshair_width_px = floats[51];
     style.x_pad_fraction = floats[52];
     style.y_pad_fraction = floats[53];
+    if (floatCount >= 58) {
+      std::memcpy(style.current_price_line_color, floats + 54, sizeof(float) * 4);
+    }
   }
   if (ints != nullptr && intCount >= 10) {
     style.show_grid = ints[0];
@@ -164,6 +189,12 @@
       style.allow_zoom_x = ints[12];
       style.allow_zoom_y = ints[13];
     }
+    if (intCount >= 15) {
+      style.show_current_price_line = ints[14];
+    }
+    if (intCount >= 16) {
+      style.double_tap_to_reset = ints[15];
+    }
   }
   std::memset(style.series_label, 0, sizeof(style.series_label));
   if (seriesLabel != nil) {
@@ -180,7 +211,7 @@
 }
 
 - (void)getStyleFloats:(float *)out floatCount:(int)floatCount {
-  if (out == nullptr || floatCount < 54) return;
+  if (out == nullptr || floatCount < 58) return;
   ChartStyle s{};
   chart_engine_get_style(_engine, &s);
   std::memcpy(out + 0,  s.bg_color,           sizeof(float) * 4);
@@ -201,10 +232,11 @@
   out[51] = s.crosshair_width_px;
   out[52] = s.x_pad_fraction;
   out[53] = s.y_pad_fraction;
+  std::memcpy(out + 54, s.current_price_line_color, sizeof(float) * 4);
 }
 
 - (void)getStyleInts:(int *)out intCount:(int)intCount {
-  if (out == nullptr || intCount < 14) return;
+  if (out == nullptr || intCount < 16) return;
   ChartStyle s{};
   chart_engine_get_style(_engine, &s);
   out[0] = s.show_grid;
@@ -221,6 +253,8 @@
   out[11] = s.allow_pan_y;
   out[12] = s.allow_zoom_x;
   out[13] = s.allow_zoom_y;
+  out[14] = s.show_current_price_line;
+  out[15] = s.double_tap_to_reset;
 }
 
 - (NSString *)seriesLabel {

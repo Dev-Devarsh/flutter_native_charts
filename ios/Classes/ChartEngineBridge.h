@@ -48,6 +48,15 @@ NS_ASSUME_NONNULL_BEGIN
 // -- Projection --
 - (void)projectX:(const double *)inX count:(int)count outNdc:(double *)outNdc;
 - (void)projectY:(const double *)inY count:(int)count outNdc:(double *)outNdc;
+- (double)unprojectX:(double)xNdc;
+- (double)unprojectY:(double)yNdc;
+
+// -- Trade lines (two-point segments) --
+- (void)setTradeLineDraftActive:(BOOL)active
+                             x1:(double)x1 y1:(double)y1
+                             x2:(double)x2 y2:(double)y2;
+- (void)notifyTradeLineDrawEndWithX1:(double)x1 y1:(double)y1 x2:(double)x2 y2:(double)y2;
+- (long long)tradeLineDrawCancelRevision;
 
 // -- Style --
 /// Updates the engine's ChartStyle from a flat Swift representation.

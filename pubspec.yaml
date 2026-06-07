@@ -2,7 +2,7 @@ name: flutter_native_charts
 description: >-
   Lightweight GPU-backed chart for Android/iOS: small Dart surface, ffi + native
   view only — no Canvas, minimal dependencies.
-version: 0.0.1
+version: 0.0.3
 homepage: https://github.com/Dev-Devarsh/flutter_native_charts
 repository: https://github.com/Dev-Devarsh/flutter_native_charts
 issue_tracker: https://github.com/Dev-Devarsh/flutter_native_charts/issues
