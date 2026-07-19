@@ -95,6 +95,12 @@ struct ChartStyle {
   // a single FFI call (no MethodChannel hop). The native overlay reads it
   // back via chart_engine_get_style on every style_revision bump.
   char series_label[32];
+
+  // -- Current price line (appended at tail for ABI compat) --
+  int show_current_price_line;         // 4 bytes
+  float current_price_line_color[4];   // 16 bytes  → total 20
+
+  int double_tap_to_reset;             // 4 bytes
 };
 
 // --- Lifecycle ---
@@ -199,6 +205,15 @@ CHART_ENGINE_EXPORT void chart_engine_project_x(void* engine,
 CHART_ENGINE_EXPORT void chart_engine_project_y(void* engine,
                                                  const double* in_y, int count,
                                                  double* out_ndc);
+
+CHART_ENGINE_EXPORT int chart_engine_has_volume_pane(void* engine);
+CHART_ENGINE_EXPORT int chart_engine_pass_zone(void* engine, int pass);
+CHART_ENGINE_EXPORT void chart_engine_get_price_projection_matrix(void* engine,
+                                                                    float out16[16]);
+CHART_ENGINE_EXPORT void chart_engine_get_volume_projection_matrix(void* engine,
+                                                                    float out16[16]);
+CHART_ENGINE_EXPORT double chart_engine_unproject_y(void* engine, double yNdc);
+CHART_ENGINE_EXPORT double chart_engine_unproject_x(void* engine, double xNdc);
 
 #ifdef __cplusplus
 }

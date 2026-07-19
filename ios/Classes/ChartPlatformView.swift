@@ -279,6 +279,16 @@ final class ChartOverlayView: UIView {
     return f
   }()
 
+  private let dateFormatterMs: DateFormatter = {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.dateFormat = "HH:mm:ss.SSS"
+    return f
+  }()
+
+  private var dynamicYDecimals: Int = 2
+  private var useMsForX: Bool = false
+
   private var xTicks: [Double] = []
   private var yTicks: [Double] = []
   private var hover: Int = -1
@@ -290,8 +300,8 @@ final class ChartOverlayView: UIView {
   private var lastStyleRevision: Int64 = -1
   private var lastHover: Int = -2
 
-  private var styleFloats = [Float](repeating: 0, count: 54)
-  private var styleInts = [Int32](repeating: 0, count: 14)
+  private var styleFloats = [Float](repeating: 0, count: 58)
+  private var styleInts = [Int32](repeating: 0, count: 15)
 
   /** While true, tooltip + marker use [scrubPoint] (finger scrub when x-pan locked). */
   private var scrubActive = false
@@ -307,6 +317,7 @@ final class ChartOverlayView: UIView {
   private var yDecimals: Int = 2
   private var xIsTimestampMs: Bool = true
   private var seriesLabel: String = "CANDLE"
+  private var showCurrentPriceLine: Bool = true
 
   /// Plot area matching the MTKView; labels + axis frame align to this. Set by `ChartHostView`.
   var plotContentFrame: CGRect = .zero
@@ -317,6 +328,7 @@ final class ChartOverlayView: UIView {
   private var tooltipBg: UIColor = UIColor(red: 0.07, green: 0.09, blue: 0.12, alpha: 0.95)
   private var tooltipText: UIColor = .white
   private var crosshair: UIColor = UIColor(red: 1.0, green: 0.85, blue: 0.40, alpha: 1.0)
+  private var currentPriceLineColor: UIColor = UIColor(red: 0.486, green: 1.0, blue: 0.698, alpha: 0.75)
 
   init(frame: CGRect, engine: ChartEngineBridge) {
     self.engine = engine
@@ -403,6 +415,7 @@ final class ChartOverlayView: UIView {
     showLegend = styleInts[5] != 0
     yDecimals = Int(styleInts[8])
     xIsTimestampMs = styleInts[9] != 0
+    showCurrentPriceLine = styleInts[14] != 0
     seriesLabel = engine.seriesLabel()
     if seriesLabel.isEmpty { seriesLabel = "SERIES" }
 
@@ -412,6 +425,7 @@ final class ChartOverlayView: UIView {
     tooltipBg = colorFromRgba(offset: 36)
     tooltipText = colorFromRgba(offset: 40)
     legendTextColor = colorFromRgba(offset: 44)
+    currentPriceLineColor = colorFromRgba(offset: 54)
   }
 
   private func colorFromRgba(offset: Int) -> UIColor {
@@ -440,6 +454,23 @@ final class ChartOverlayView: UIView {
       }
     } else {
       yTicks.removeAll()
+    }
+
+    dynamicYDecimals = yDecimals
+    if yTicks.count > 1 {
+      let step = abs(yTicks[1] - yTicks[0])
+      if step > 0 {
+        let req = Int(ceil(-log10(step)))
+        dynamicYDecimals = max(yDecimals, req)
+      }
+    }
+
+    useMsForX = false
+    if xTicks.count > 1 {
+      let step = abs(xTicks[1] - xTicks[0])
+      if step < 1000.0 {
+        useMsForX = true
+      }
     }
   }
 
@@ -554,6 +585,51 @@ final class ChartOverlayView: UIView {
         }
         item.label.draw(at: CGPoint(x: tx, y: item.baselineY), withAttributes: axisAttrs)
         lastInkBottom = item.baselineY - axisFont.descender
+      }
+    }
+
+    if showCurrentPriceLine {
+      let count = Int(engine.candleCount())
+      if count > 0 {
+        var c = [Double](repeating: 0, count: 6)
+        let ok = c.withUnsafeMutableBufferPointer { buf -> Int32 in
+          engine.getCandle(Int32(count - 1), out6: buf.baseAddress!)
+        }
+        if ok == 1 {
+          let closePrice = c[4]
+          var yIn = [closePrice]
+          var yOut = [0.0]
+          yIn.withUnsafeBufferPointer { src in
+            yOut.withUnsafeMutableBufferPointer { dst in
+              engine.projectY(src.baseAddress!, count: 1, outNdc: dst.baseAddress!)
+            }
+          }
+          if ndcOnChartPlane(yOut[0]) {
+            let py = plot.minY + CGFloat(1.0 - (yOut[0] + 1.0) * 0.5) * ph
+            let label = formatY(closePrice) as NSString
+            let badgeFont = tooltipAttrs[.font] as? UIFont ?? UIFont.monospacedSystemFont(ofSize: 12, weight: .semibold)
+            let badgeAttrs: [NSAttributedString.Key: Any] = [
+              .font: badgeFont,
+              .foregroundColor: tooltipText,
+            ]
+            let size = label.size(withAttributes: badgeAttrs)
+            let gutter: CGFloat = 4
+            let padX: CGFloat = 4
+            let padY: CGFloat = 2
+            let badgeRect = CGRect(x: plot.minX - gutter - size.width - padX * 2,
+                                   y: py - size.height / 2 - padY,
+                                   width: size.width + padX * 2,
+                                   height: size.height + padY * 2)
+            
+            ctx.saveGState()
+            ctx.setFillColor(currentPriceLineColor.cgColor)
+            let path = UIBezierPath(roundedRect: badgeRect, cornerRadius: 4)
+            path.fill()
+            ctx.restoreGState()
+            
+            label.draw(at: CGPoint(x: badgeRect.minX + padX, y: badgeRect.minY + padY), withAttributes: badgeAttrs)
+          }
+        }
       }
     }
 
@@ -674,13 +750,14 @@ final class ChartOverlayView: UIView {
 
   private func formatX(_ v: Double) -> String {
     if xIsTimestampMs {
-      return dateFormatter.string(from: Date(timeIntervalSince1970: v / 1000.0))
+      let fmt = useMsForX ? dateFormatterMs : dateFormatter
+      return fmt.string(from: Date(timeIntervalSince1970: v / 1000.0))
     }
     return formatY(v)
   }
 
   private func formatY(_ v: Double) -> String {
-    String(format: "%.\(max(0, yDecimals))f", v)
+    String(format: "%.\(max(0, dynamicYDecimals))f", v)
   }
 
   private func formatVol(_ v: Double) -> String {
@@ -728,7 +805,7 @@ final class ChartHostView: UIView, UIGestureRecognizerDelegate {
   /// Locked at pinch start: wider horizontal finger span ⇒ zoom X; else zoom Y.
   private var pinchZoomsHorizontalAxis = true
 
-  private var interactionStyleInts = [Int32](repeating: 0, count: 14)
+  private var interactionStyleInts = [Int32](repeating: 0, count: 16)
 
   init(frame: CGRect,
        mtkView: MTKView,
@@ -811,7 +888,11 @@ final class ChartHostView: UIView, UIGestureRecognizerDelegate {
 
   private func scrubHover(at locationInHost: CGPoint) {
     let plot = plotRectForGestures()
-    guard plot.contains(locationInHost) else { return }
+    guard plot.contains(locationInHost) else {
+      engine.setHover(-1)
+      overlay.clearScrubAnchor()
+      return
+    }
     let xNDC = touchToNDC(locationInHost).x
     var xMin = 0.0
     var xMax = 0.0
@@ -830,6 +911,10 @@ final class ChartHostView: UIView, UIGestureRecognizerDelegate {
   @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
     if recognizer.state == .ended || recognizer.state == .cancelled || recognizer.state == .failed {
       overlay.clearScrubAnchor()
+      let ia = pullInteractionFlags()
+      if !ia.allowPanX {
+        engine.setHover(-1)
+      }
       return
     }
     guard recognizer.state == .began || recognizer.state == .changed else { return }
@@ -883,7 +968,13 @@ final class ChartHostView: UIView, UIGestureRecognizerDelegate {
   }
 
   @objc private func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
-    viewportBridge.reset()
+    interactionStyleInts.withUnsafeMutableBufferPointer { buf in
+      engine.getStyleInts(buf.baseAddress!, intCount: Int32(buf.count))
+    }
+    let allowDoubleTapReset = interactionStyleInts[15] != 0
+    if allowDoubleTapReset {
+      viewportBridge.reset()
+    }
     engine.setHover(-1)
     overlay.clearScrubAnchor()
   }

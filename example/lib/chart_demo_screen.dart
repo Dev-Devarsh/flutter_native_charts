@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -57,6 +56,8 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
       showLegend: true,
       showTooltip: true,
       showCrosshair: true,
+      showCurrentPriceLine: widget.kind.isLive,
+      currentPriceLineColor: const Color(0xBF7CFFB2),
       approxXTicks: 6,
       approxYTicks: 6,
       yDecimals: 2,
@@ -219,22 +220,36 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
                       _StyleOptionsPanel(
                         title: 'Overlay',
                         style: _chart.style,
-                        options: const [
-                          _StyleBoolOption('Grid', _StyleBoolField.showGrid),
-                          _StyleBoolOption('X axis', _StyleBoolField.showXAxis),
-                          _StyleBoolOption('Y axis', _StyleBoolField.showYAxis),
-                          _StyleBoolOption(
+                        options: [
+                          const _StyleBoolOption(
+                            'Grid',
+                            _StyleBoolField.showGrid,
+                          ),
+                          const _StyleBoolOption(
+                            'X axis',
+                            _StyleBoolField.showXAxis,
+                          ),
+                          const _StyleBoolOption(
+                            'Y axis',
+                            _StyleBoolField.showYAxis,
+                          ),
+                          const _StyleBoolOption(
                             'Crosshair',
                             _StyleBoolField.showCrosshair,
                           ),
-                          _StyleBoolOption(
+                          const _StyleBoolOption(
                             'Tooltip',
                             _StyleBoolField.showTooltip,
                           ),
-                          _StyleBoolOption(
+                          const _StyleBoolOption(
                             'Legend',
                             _StyleBoolField.showLegend,
                           ),
+                          if (widget.kind.isLive)
+                            const _StyleBoolOption(
+                              'Price line',
+                              _StyleBoolField.showCurrentPriceLine,
+                            ),
                         ],
                         onChanged: (field, value) {
                           _patchStyle((s) => field.apply(s, value));
@@ -397,6 +412,7 @@ enum _StyleBoolField {
   showCrosshair,
   showTooltip,
   showLegend,
+  showCurrentPriceLine,
   xIsTimestampMs;
 
   bool read(ChartStyle s) => switch (this) {
@@ -406,6 +422,7 @@ enum _StyleBoolField {
     _StyleBoolField.showCrosshair => s.showCrosshair,
     _StyleBoolField.showTooltip => s.showTooltip,
     _StyleBoolField.showLegend => s.showLegend,
+    _StyleBoolField.showCurrentPriceLine => s.showCurrentPriceLine,
     _StyleBoolField.xIsTimestampMs => s.xIsTimestampMs,
   };
 
@@ -416,6 +433,9 @@ enum _StyleBoolField {
     _StyleBoolField.showCrosshair => s.copyWith(showCrosshair: value),
     _StyleBoolField.showTooltip => s.copyWith(showTooltip: value),
     _StyleBoolField.showLegend => s.copyWith(showLegend: value),
+    _StyleBoolField.showCurrentPriceLine => s.copyWith(
+      showCurrentPriceLine: value,
+    ),
     _StyleBoolField.xIsTimestampMs => s.copyWith(xIsTimestampMs: value),
   };
 }
@@ -731,7 +751,7 @@ class _ModeBanner extends StatelessWidget {
               feed
                   ? 'Data feed · pushCandlesRaw → FFI'
                   : liveActive
-                  ? 'Live · updateLivePrice → FFI (running)'
+                  ? 'Live · updateLivePrice + price tracer (running)'
                   : 'Live · waiting for native engine…',
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
             ),

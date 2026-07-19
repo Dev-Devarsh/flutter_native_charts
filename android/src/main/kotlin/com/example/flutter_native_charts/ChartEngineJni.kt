@@ -29,6 +29,8 @@ internal object ChartEngineJni {
     @JvmStatic external fun nativeSetSeriesType(handle: Long, type: Int)
     @JvmStatic external fun nativeGetSeriesType(handle: Long): Int
 
+    @JvmStatic external fun nativeHasVolumePane(handle: Long): Int
+
     // -- passes --
     @JvmStatic external fun nativePassCount(handle: Long): Int
     @JvmStatic external fun nativeReadPass(
@@ -37,6 +39,12 @@ internal object ChartEngineJni {
         outPrimitive: IntArray,
         outVertices: FloatArray?,
     ): Int
+
+    @JvmStatic external fun nativePassZone(handle: Long, pass: Int): Int
+
+    @JvmStatic external fun nativeGetPriceProjectionMatrix(handle: Long, out16: FloatArray)
+
+    @JvmStatic external fun nativeGetVolumeProjectionMatrix(handle: Long, out16: FloatArray)
 
     // -- data --
     /**
@@ -70,6 +78,10 @@ internal object ChartEngineJni {
     @JvmStatic external fun nativeProjectY(
         handle: Long, inY: DoubleArray, count: Int, outNdc: DoubleArray,
     )
+
+    @JvmStatic external fun nativeUnprojectY(handle: Long, yNdc: Double): Double
+
+    @JvmStatic external fun nativeUnprojectX(handle: Long, xNdc: Double): Double
 
     // -- style --
     @JvmStatic external fun nativeSetStyle(handle: Long, floats: FloatArray, ints: IntArray)

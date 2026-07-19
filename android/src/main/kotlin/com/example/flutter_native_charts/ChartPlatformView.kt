@@ -64,10 +64,14 @@ class ChartPlatformView(
     private val methodChannel: MethodChannel =
         MethodChannel(messenger, "$CHANNEL_PREFIX/$viewId")
 
-    private val styleScratchInts = IntArray(14)
+    private val styleScratchInts = IntArray(16)
 
     private var isResumed = false
     private var isDisposed = false
+    private var isScrubbing = false
+
+    private var longPressDownX = 0f
+    private var longPressDownY = 0f
 
     init {
         glSurfaceView.setEGLContextClientVersion(3)
@@ -117,8 +121,12 @@ class ChartPlatformView(
                         plotTop + plotHeightPx,
                     )
                     if (!allowPanX) {
+                        isScrubbing = true
                         if (plotRect.contains(e2.x.toInt(), e2.y.toInt())) {
                             applyScrubAt(e2.x, e2.y)
+                        } else {
+                            ChartEngineJni.nativeSetHover(chartEngineHandle, -1)
+                            overlay.clearScrubFinger()
                         }
                     } else if (ChartEngineJni.nativeGetHover(chartEngineHandle) >= 0) {
                         ChartEngineJni.nativeSetHover(chartEngineHandle, -1)
@@ -158,7 +166,11 @@ class ChartPlatformView(
                 }
 
                 override fun onDoubleTap(e: MotionEvent): Boolean {
-                    ViewportEngineJni.nativeReset(viewportHandle)
+                    ChartEngineJni.nativeGetStyleInts(chartEngineHandle, styleScratchInts)
+                    val allowDoubleTapReset = styleScratchInts[15] != 0
+                    if (allowDoubleTapReset) {
+                        ViewportEngineJni.nativeReset(viewportHandle)
+                    }
                     ChartEngineJni.nativeSetHover(chartEngineHandle, -1)
                     return true
                 }
@@ -243,6 +255,20 @@ class ChartPlatformView(
         return 2.0 * nx - 1.0
     }
 
+    private fun touchToNdcY(y: Float): Double {
+        val h = plotHeightPx.coerceAtLeast(1)
+        val ny = ((y - plotTop) / h).toDouble().coerceIn(0.0, 1.0)
+        return 1.0 - 2.0 * ny
+    }
+
+    private fun plotRect(): android.graphics.Rect =
+        android.graphics.Rect(
+            plotLeft,
+            plotTop,
+            plotLeft + plotWidthPx,
+            plotTop + plotHeightPx,
+        )
+
     private fun applyScrubAt(rawX: Float, rawY: Float) {
         val xNDC = touchToNdcX(rawX)
         val xDomain = DoubleArray(2)
@@ -263,8 +289,27 @@ class ChartPlatformView(
     private fun attachTouchListener() {
         root.setOnTouchListener { _, event ->
             val masked = event.actionMasked
-            if (masked == MotionEvent.ACTION_UP || masked == MotionEvent.ACTION_CANCEL) {
-                overlay.clearScrubFinger()
+            when (masked) {
+                MotionEvent.ACTION_DOWN -> {
+                    longPressDownX = event.x
+                    longPressDownY = event.y
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val moved = kotlin.math.hypot(
+                        (event.x - longPressDownX).toDouble(),
+                        (event.y - longPressDownY).toDouble(),
+                    )
+                    if (moved > dp(10f)) {
+                        // moved significantly
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    overlay.clearScrubFinger()
+                    if (isScrubbing) {
+                        ChartEngineJni.nativeSetHover(chartEngineHandle, -1)
+                        isScrubbing = false
+                    }
+                }
             }
             scaleDetector.onTouchEvent(event)
             if (!scaleDetector.isInProgress) {
@@ -317,3 +362,4 @@ class ChartPlatformView(
         }
     }
 }
+

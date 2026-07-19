@@ -28,6 +28,9 @@ private const val PRIM_LINES = 1
 private const val PRIM_LINE_STRIP = 2
 private const val PRIM_TRIANGLE_STRIP = 3
 
+private const val PASS_ZONE_PRICE = 0
+private const val PASS_ZONE_VOLUME = 1
+
 private const val VERTEX_SHADER_SRC = """#version 300 es
 in vec2 a_Position;
 in vec4 a_Color;
@@ -52,6 +55,7 @@ private class PassEntry {
     var vertices: FloatArray = FloatArray(0)
     var vertexCount: Int = 0
     var primitive: Int = PRIM_TRIANGLES
+    var zone: Int = PASS_ZONE_PRICE
 }
 
 /**
@@ -71,6 +75,9 @@ class ChartRenderer(
 
     private val projectionMatrix = FloatArray(16)
     private val primitiveOut = IntArray(1)
+
+    private var surfaceWidth = 1
+    private var surfaceHeight = 1
 
     private val passes = mutableListOf<PassEntry>()
     private var lastSeenGeneration = -1
@@ -113,6 +120,8 @@ class ChartRenderer(
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
+        surfaceWidth = width.coerceAtLeast(1)
+        surfaceHeight = height.coerceAtLeast(1)
         GLES30.glViewport(0, 0, width, height)
     }
 
@@ -145,11 +154,6 @@ class ChartRenderer(
 
         GLES30.glUseProgram(program)
 
-        if (viewportHandle != 0L && projectionUniformLocation >= 0) {
-            ViewportEngineJni.nativeGetProjectionMatrix(viewportHandle, projectionMatrix)
-            GLES30.glUniformMatrix4fv(projectionUniformLocation, 1, false, projectionMatrix, 0)
-        }
-
         if (passes.isEmpty()) return
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, vbo[0])
@@ -162,17 +166,65 @@ class ChartRenderer(
             colorAttribLocation, 4, GLES30.GL_FLOAT, false, STRIDE, ATTR_COLOR_OFFSET,
         )
 
-        var offset = 0
-        for (p in passes) {
-            if (p.vertexCount > 0) {
-                GLES30.glDrawArrays(toGlPrimitive(p.primitive), offset, p.vertexCount)
-                offset += p.vertexCount
+        val plotH = surfaceHeight
+        val plotW = surfaceWidth
+        val hasVolumePane = ChartEngineJni.nativeHasVolumePane(chartEngineHandle) != 0
+
+        if (hasVolumePane) {
+            val mainHeightPx = (plotH * 0.8f).toInt().coerceAtLeast(1)
+            val volumeHeightPx = (plotH - mainHeightPx).coerceAtLeast(1)
+
+            GLES30.glEnable(GLES30.GL_SCISSOR_TEST)
+
+            // Phase 1: price pane (top 80%). OpenGL scissor Y is bottom-left origin.
+            val mainScissorY = plotH - mainHeightPx
+            GLES30.glScissor(0, mainScissorY, plotW, mainHeightPx)
+            if (projectionUniformLocation >= 0) {
+                ChartEngineJni.nativeGetPriceProjectionMatrix(chartEngineHandle, projectionMatrix)
+                GLES30.glUniformMatrix4fv(projectionUniformLocation, 1, false, projectionMatrix, 0)
             }
+            drawPassesForZone(PASS_ZONE_PRICE)
+
+            // Phase 2: volume pane (bottom 20%).
+            GLES30.glScissor(0, 0, plotW, volumeHeightPx)
+            if (projectionUniformLocation >= 0) {
+                ChartEngineJni.nativeGetVolumeProjectionMatrix(chartEngineHandle, projectionMatrix)
+                GLES30.glUniformMatrix4fv(projectionUniformLocation, 1, false, projectionMatrix, 0)
+            }
+            drawPassesForZone(PASS_ZONE_VOLUME)
+
+            GLES30.glDisable(GLES30.GL_SCISSOR_TEST)
+        } else {
+            if (projectionUniformLocation >= 0) {
+                ChartEngineJni.nativeGetPriceProjectionMatrix(chartEngineHandle, projectionMatrix)
+                GLES30.glUniformMatrix4fv(projectionUniformLocation, 1, false, projectionMatrix, 0)
+            }
+            drawAllPasses()
         }
 
         GLES30.glDisableVertexAttribArray(positionAttribLocation)
         GLES30.glDisableVertexAttribArray(colorAttribLocation)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
+    }
+
+    private fun drawPassesForZone(zone: Int) {
+        var offset = 0
+        for (p in passes) {
+            if (p.vertexCount > 0 && p.zone == zone) {
+                GLES30.glDrawArrays(toGlPrimitive(p.primitive), offset, p.vertexCount)
+            }
+            offset += p.vertexCount
+        }
+    }
+
+    private fun drawAllPasses() {
+        var offset = 0
+        for (p in passes) {
+            if (p.vertexCount > 0) {
+                GLES30.glDrawArrays(toGlPrimitive(p.primitive), offset, p.vertexCount)
+            }
+            offset += p.vertexCount
+        }
     }
 
     private fun syncGeometryFromEngine() {
@@ -198,6 +250,7 @@ class ChartRenderer(
                 chartEngineHandle, i, primitiveOut, entry.vertices,
             )
             entry.primitive = primitiveOut[0]
+            entry.zone = ChartEngineJni.nativePassZone(chartEngineHandle, i)
             totalVertices += entry.vertexCount
         }
         // Zero out trailing passes (engine may have dropped some).

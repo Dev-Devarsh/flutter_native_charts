@@ -31,21 +31,34 @@ final class NativeCandle extends ffi.Struct {
 }
 
 typedef _PushCandlesRawNative =
-    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<ffi.Double> data, ffi.Int32 count);
+    ffi.Void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<ffi.Double> data,
+      ffi.Int32 count,
+    );
 typedef _PushCandlesRawDart =
-    void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<ffi.Double> data, int count);
+    void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<ffi.Double> data,
+      int count,
+    );
 
-typedef _SetSeriesTypeNative = ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Int32 type);
-typedef _SetSeriesTypeDart = void Function(ffi.Pointer<ffi.Void> engine, int type);
+typedef _SetSeriesTypeNative =
+    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Int32 type);
+typedef _SetSeriesTypeDart =
+    void Function(ffi.Pointer<ffi.Void> engine, int type);
 
 typedef _GetSeriesTypeNative = ffi.Int32 Function(ffi.Pointer<ffi.Void> engine);
 typedef _GetSeriesTypeDart = int Function(ffi.Pointer<ffi.Void> engine);
 
-typedef _SetHoverNative = ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Int32 index);
+typedef _SetHoverNative =
+    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Int32 index);
 typedef _SetHoverDart = void Function(ffi.Pointer<ffi.Void> engine, int index);
 
-typedef _SetTimeframeNative = ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Double intervalMs);
-typedef _SetTimeframeDart = void Function(ffi.Pointer<ffi.Void> engine, double intervalMs);
+typedef _SetTimeframeNative =
+    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Double intervalMs);
+typedef _SetTimeframeDart =
+    void Function(ffi.Pointer<ffi.Void> engine, double intervalMs);
 
 typedef _UpdateLiveTickNative =
     ffi.Void Function(
@@ -55,7 +68,12 @@ typedef _UpdateLiveTickNative =
       ffi.Double volume,
     );
 typedef _UpdateLiveTickDart =
-    void Function(ffi.Pointer<ffi.Void> engine, double timestamp, double price, double volume);
+    void Function(
+      ffi.Pointer<ffi.Void> engine,
+      double timestamp,
+      double price,
+      double volume,
+    );
 
 typedef _UpdateLiveOhlcNative =
     ffi.Void Function(
@@ -79,8 +97,15 @@ typedef _UpdateLiveOhlcDart =
     );
 
 typedef _SetStyleNative =
-    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<NativeChartStyle> style);
-typedef _SetStyleDart = void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<NativeChartStyle> style);
+    ffi.Void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<NativeChartStyle> style,
+    );
+typedef _SetStyleDart =
+    void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<NativeChartStyle> style,
+    );
 
 /// FFI mirror of the C `ChartStyle` struct. Keep field order, types, and
 /// counts identical to chart_engine_ffi.h.
@@ -161,6 +186,14 @@ final class NativeChartStyle extends ffi.Struct {
   /// single FFI call (no MethodChannel hop, no Flutter main-thread work).
   @ffi.Array(32)
   external ffi.Array<ffi.Uint8> seriesLabel;
+
+  @ffi.Int32()
+  external int showCurrentPriceLine;
+  @ffi.Array(4)
+  external ffi.Array<ffi.Float> currentPriceLineColor;
+
+  @ffi.Int32()
+  external int doubleTapToReset;
 }
 
 ffi.DynamicLibrary _openChartEngineLibrary() {
@@ -170,7 +203,9 @@ ffi.DynamicLibrary _openChartEngineLibrary() {
   if (Platform.isIOS) {
     return ffi.DynamicLibrary.process();
   }
-  throw UnsupportedError('ChartEngineFfi is only supported on Android and iOS.');
+  throw UnsupportedError(
+    'ChartEngineFfi is only supported on Android and iOS.',
+  );
 }
 
 /// FFI wrapper around the native chart engine.
@@ -191,23 +226,39 @@ class ChartEngineFfi {
   }
 
   ChartEngineFfi._(this._lib, this._engine) {
-    _pushCandlesRaw = _lib.lookupFunction<_PushCandlesRawNative, _PushCandlesRawDart>('push_candles_raw');
-    _appendCandlesRaw = _lib.lookupFunction<_PushCandlesRawNative, _PushCandlesRawDart>('append_candles_raw');
-    _setSeriesType = _lib.lookupFunction<_SetSeriesTypeNative, _SetSeriesTypeDart>(
-      'chart_engine_set_series_type',
+    _pushCandlesRaw = _lib
+        .lookupFunction<_PushCandlesRawNative, _PushCandlesRawDart>(
+          'push_candles_raw',
+        );
+    _appendCandlesRaw = _lib
+        .lookupFunction<_PushCandlesRawNative, _PushCandlesRawDart>(
+          'append_candles_raw',
+        );
+    _setSeriesType = _lib
+        .lookupFunction<_SetSeriesTypeNative, _SetSeriesTypeDart>(
+          'chart_engine_set_series_type',
+        );
+    _getSeriesType = _lib
+        .lookupFunction<_GetSeriesTypeNative, _GetSeriesTypeDart>(
+          'chart_engine_get_series_type',
+        );
+    _setHover = _lib.lookupFunction<_SetHoverNative, _SetHoverDart>(
+      'chart_engine_set_hover',
     );
-    _getSeriesType = _lib.lookupFunction<_GetSeriesTypeNative, _GetSeriesTypeDart>(
-      'chart_engine_get_series_type',
+    _setTimeframe = _lib.lookupFunction<_SetTimeframeNative, _SetTimeframeDart>(
+      'chart_engine_set_timeframe',
     );
-    _setHover = _lib.lookupFunction<_SetHoverNative, _SetHoverDart>('chart_engine_set_hover');
-    _setTimeframe = _lib.lookupFunction<_SetTimeframeNative, _SetTimeframeDart>('chart_engine_set_timeframe');
-    _updateLiveTick = _lib.lookupFunction<_UpdateLiveTickNative, _UpdateLiveTickDart>(
-      'chart_engine_update_live_tick',
+    _updateLiveTick = _lib
+        .lookupFunction<_UpdateLiveTickNative, _UpdateLiveTickDart>(
+          'chart_engine_update_live_tick',
+        );
+    _updateLiveOhlc = _lib
+        .lookupFunction<_UpdateLiveOhlcNative, _UpdateLiveOhlcDart>(
+          'chart_engine_update_live_ohlc',
+        );
+    _setStyle = _lib.lookupFunction<_SetStyleNative, _SetStyleDart>(
+      'chart_engine_set_style',
     );
-    _updateLiveOhlc = _lib.lookupFunction<_UpdateLiveOhlcNative, _UpdateLiveOhlcDart>(
-      'chart_engine_update_live_ohlc',
-    );
-    _setStyle = _lib.lookupFunction<_SetStyleNative, _SetStyleDart>('chart_engine_set_style');
   }
 
   final ffi.DynamicLibrary _lib;
@@ -260,7 +311,9 @@ class ChartEngineFfi {
     if (_disposed) throw StateError('ChartEngineFfi disposed');
     if (data.isEmpty) return;
     if (data.length % 6 != 0) {
-      throw ArgumentError('data length (${data.length}) must be a multiple of 6');
+      throw ArgumentError(
+        'data length (${data.length}) must be a multiple of 6',
+      );
     }
     _ensureScratch(data.length);
     _scratchView.setRange(0, data.length, data);
@@ -294,7 +347,9 @@ class ChartEngineFfi {
     if (_disposed) throw StateError('ChartEngineFfi disposed');
     if (data.isEmpty) return;
     if (data.length % 6 != 0) {
-      throw ArgumentError('data length (${data.length}) must be a multiple of 6');
+      throw ArgumentError(
+        'data length (${data.length}) must be a multiple of 6',
+      );
     }
     _ensureScratch(data.length);
     _scratchView.setRange(0, data.length, data);
@@ -309,7 +364,10 @@ class ChartEngineFfi {
   SeriesType get seriesType {
     if (_disposed) return SeriesType.candlestick;
     final raw = _getSeriesType(_engine);
-    return SeriesType.values.firstWhere((t) => t.nativeValue == raw, orElse: () => SeriesType.candlestick);
+    return SeriesType.values.firstWhere(
+      (t) => t.nativeValue == raw,
+      orElse: () => SeriesType.candlestick,
+    );
   }
 
   void setHover(int index) {
@@ -330,7 +388,11 @@ class ChartEngineFfi {
   ///
   /// **Rendering:** **candles** use full OHLC; **line** and **area** read
   /// **close** only (same backing `NativeCandle` buffer).
-  void updateLiveTick({required double timestamp, required double price, double volume = 0}) {
+  void updateLiveTick({
+    required double timestamp,
+    required double price,
+    double volume = 0,
+  }) {
     if (_disposed) throw StateError('ChartEngineFfi disposed');
     _updateLiveTick(_engine, timestamp, price, volume);
   }
@@ -397,6 +459,11 @@ class ChartEngineFfi {
 
       _writeSeriesLabel(s.seriesLabel, style.seriesLabel);
 
+      s.showCurrentPriceLine = style.showCurrentPriceLine ? 1 : 0;
+      _writeColor(s.currentPriceLineColor, style.currentPriceLineColor);
+
+      s.doubleTapToReset = style.doubleTapToReset ? 1 : 0;
+
       _setStyle(_engine, ptr);
     } finally {
       calloc.free(ptr);
@@ -417,7 +484,9 @@ class ChartEngineFfi {
   static void _writeSeriesLabel(ffi.Array<ffi.Uint8> arr, String label) {
     final encoded = utf8.encode(label);
     const int capacity = 32;
-    final int maxBytes = (encoded.length < capacity - 1) ? encoded.length : capacity - 1;
+    final int maxBytes = (encoded.length < capacity - 1)
+        ? encoded.length
+        : capacity - 1;
     for (int i = 0; i < maxBytes; i++) {
       arr[i] = encoded[i];
     }

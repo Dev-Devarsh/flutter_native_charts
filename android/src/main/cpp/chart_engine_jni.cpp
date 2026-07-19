@@ -351,6 +351,9 @@ CHART_JNI_METHOD(nativeSetStyle)(JNIEnv* env, jclass, jlong handle,
     style.crosshair_width_px = fp[51];
     style.x_pad_fraction = fp[52];
     style.y_pad_fraction = fp[53];
+    if (floatCount >= 58) {
+      std::memcpy(style.current_price_line_color, fp + 54, sizeof(float) * 4);
+    }
     env->ReleaseFloatArrayElements(floats, fp, JNI_ABORT);
   }
   // Int layout (matches Dart):
@@ -377,6 +380,9 @@ CHART_JNI_METHOD(nativeSetStyle)(JNIEnv* env, jclass, jlong handle,
       style.allow_zoom_x = ip[12];
       style.allow_zoom_y = ip[13];
     }
+    if (intCount >= 15) {
+      style.show_current_price_line = ip[14];
+    }
     env->ReleaseIntArrayElements(ints, ip, JNI_ABORT);
   }
   chart_engine_set_style(reinterpret_cast<void*>(handle), &style);
@@ -395,14 +401,15 @@ CHART_JNI_METHOD(nativeStyleRevision)(JNIEnv*, jclass, jlong handle) {
 //   [51]     = crosshair_width_px
 //   [52]     = x_pad_fraction
 //   [53]     = y_pad_fraction
+//   [54..57] = current_price_line_color (4 floats)
 JNIEXPORT void JNICALL
 CHART_JNI_METHOD(nativeGetStyleFloats)(JNIEnv* env, jclass, jlong handle,
                                        jfloatArray out) {
   if (handle == 0 || out == nullptr) return;
-  if (env->GetArrayLength(out) < 54) return;
+  if (env->GetArrayLength(out) < 58) return;
   ChartStyle s{};
   chart_engine_get_style(reinterpret_cast<void*>(handle), &s);
-  jfloat buf[54];
+  jfloat buf[58];
   std::memcpy(buf + 0,  s.bg_color,           sizeof(float) * 4);
   std::memcpy(buf + 4,  s.grid_color,         sizeof(float) * 4);
   std::memcpy(buf + 8,  s.axis_text_color,    sizeof(float) * 4);
@@ -421,7 +428,8 @@ CHART_JNI_METHOD(nativeGetStyleFloats)(JNIEnv* env, jclass, jlong handle,
   buf[51] = s.crosshair_width_px;
   buf[52] = s.x_pad_fraction;
   buf[53] = s.y_pad_fraction;
-  env->SetFloatArrayRegion(out, 0, 54, buf);
+  std::memcpy(buf + 54, s.current_price_line_color, sizeof(float) * 4);
+  env->SetFloatArrayRegion(out, 0, 58, buf);
 }
 
 // Int layout (matches Dart NativeChartStyle / JNI nativeSetStyle):
@@ -430,20 +438,24 @@ CHART_JNI_METHOD(nativeGetStyleFloats)(JNIEnv* env, jclass, jlong handle,
 //   [6] approx_x_ticks, [7] approx_y_ticks,
 //   [8] y_decimals, [9] x_is_timestamp_ms,
 //   [10..13] allow_pan_x, allow_pan_y, allow_zoom_x, allow_zoom_y
+//   [14] show_current_price_line
+//   [15] double_tap_to_reset
 JNIEXPORT void JNICALL
 CHART_JNI_METHOD(nativeGetStyleInts)(JNIEnv* env, jclass, jlong handle,
                                      jintArray out) {
   if (handle == 0 || out == nullptr) return;
-  const jsize want = 14;
+  const jsize want = 16;
   if (env->GetArrayLength(out) < want) return;
   ChartStyle s{};
   chart_engine_get_style(reinterpret_cast<void*>(handle), &s);
-  jint buf[14] = {
+  jint buf[16] = {
     s.show_grid, s.show_x_axis, s.show_y_axis,
     s.show_crosshair, s.show_tooltip, s.show_legend,
     s.approx_x_ticks, s.approx_y_ticks,
     s.y_decimals, s.x_is_timestamp_ms,
     s.allow_pan_x, s.allow_pan_y, s.allow_zoom_x, s.allow_zoom_y,
+    s.show_current_price_line,
+    s.double_tap_to_reset,
   };
   env->SetIntArrayRegion(out, 0, want, buf);
 }
@@ -456,6 +468,46 @@ CHART_JNI_METHOD(nativeGetSeriesLabel)(JNIEnv* env, jclass, jlong handle) {
   // Force null-termination paranoia, then hand to JNI.
   s.series_label[sizeof(s.series_label) - 1] = '\0';
   return env->NewStringUTF(s.series_label);
+}
+
+JNIEXPORT jint JNICALL
+CHART_JNI_METHOD(nativeHasVolumePane)(JNIEnv*, jclass, jlong handle) {
+  return chart_engine_has_volume_pane(reinterpret_cast<void*>(handle));
+}
+
+JNIEXPORT jint JNICALL
+CHART_JNI_METHOD(nativePassZone)(JNIEnv*, jclass, jlong handle, jint pass) {
+  return chart_engine_pass_zone(reinterpret_cast<void*>(handle), pass);
+}
+
+JNIEXPORT void JNICALL
+CHART_JNI_METHOD(nativeGetPriceProjectionMatrix)(JNIEnv* env, jclass, jlong handle,
+                                                  jfloatArray out16) {
+  if (handle == 0 || out16 == nullptr) return;
+  if (env->GetArrayLength(out16) < 16) return;
+  jfloat* ptr = env->GetFloatArrayElements(out16, nullptr);
+  chart_engine_get_price_projection_matrix(reinterpret_cast<void*>(handle), ptr);
+  env->ReleaseFloatArrayElements(out16, ptr, 0);
+}
+
+JNIEXPORT void JNICALL
+CHART_JNI_METHOD(nativeGetVolumeProjectionMatrix)(JNIEnv* env, jclass, jlong handle,
+                                                   jfloatArray out16) {
+  if (handle == 0 || out16 == nullptr) return;
+  if (env->GetArrayLength(out16) < 16) return;
+  jfloat* ptr = env->GetFloatArrayElements(out16, nullptr);
+  chart_engine_get_volume_projection_matrix(reinterpret_cast<void*>(handle), ptr);
+  env->ReleaseFloatArrayElements(out16, ptr, 0);
+}
+
+JNIEXPORT jdouble JNICALL
+CHART_JNI_METHOD(nativeUnprojectY)(JNIEnv*, jclass, jlong handle, jdouble yNdc) {
+  return chart_engine_unproject_y(reinterpret_cast<void*>(handle), yNdc);
+}
+
+JNIEXPORT jdouble JNICALL
+CHART_JNI_METHOD(nativeUnprojectX)(JNIEnv*, jclass, jlong handle, jdouble xNdc) {
+  return chart_engine_unproject_x(reinterpret_cast<void*>(handle), xNdc);
 }
 
 }  // extern "C"

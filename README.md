@@ -8,14 +8,30 @@ High-performance **financial / time-series charts** for Flutter on **Android** a
 
 Screen recordings from the **`example/`** app (candle presets). Open each file in the repo to play inline on GitHub, or download locally.
 
-| Recording | File | What it shows |
-|-----------|------|----------------|
-| **Candle · data feed** | [`candle_simple.mp4`](./doc/videos/candle_simple.mp4) | Bulk history via **`pushCandlesRaw`**, then smooth pan and zoom over a static OHLC series. |
-| **Candle · live** | [`candle_live.mp4`](./doc/videos/candle_live.mp4) | Short seeded history, then **`updateLivePrice`** streaming over FFI into rolling 1‑minute buckets. |
+| Candle · data feed | Candle · live |
+|:---:|:---:|
+| <video src="https://raw.githubusercontent.com/Dev-Devarsh/flutter_native_charts/main/doc/videos/candle_simple.mp4" autoplay loop muted playsinline></video> | <video src="https://raw.githubusercontent.com/Dev-Devarsh/flutter_native_charts/main/doc/videos/candle_live.mp4" autoplay loop muted playsinline></video> |
+| Bulk history via **`pushCandlesRaw`**, then smooth pan and zoom over a static OHLC series. | Short seeded history, then **`updateLivePrice`** streaming over FFI into rolling 1‑minute buckets. |
 
 **Frame rate:** both clips were captured in **Flutter debug mode**, where you should expect on the order of **~60 FPS** during interaction. **Release** builds (`flutter run --release` / profile store builds) drop debug assertions and JIT overhead, so the same chart can often reach **up to ~120 FPS** on capable hardware—exact numbers depend on device, dataset size, and how aggressively you pan or zoom.
 
 Run the same flows yourself from **`example/`** → **Candle · Data feed** and **Candle · Live** on the home screen.
+
+### Live price tracer (v0.0.2)
+
+A **horizontal line** at the active candle’s **close** spans the plot (GPU `CHART_PRIMITIVE_LINES`). A **colored badge** on the Y-axis shows the same numeric price, projected in screen space so it stays aligned during pan and zoom.
+
+```dart
+ChartController(
+  style: const ChartStyle(
+    showCurrentPriceLine: true,
+    currentPriceLineColor: Color(0xBF7CFFB2),
+  ),
+);
+// Disable: controller.setStyle(controller.style.copyWith(showCurrentPriceLine: false));
+```
+
+In **`example/`**, open any **· Live** demo (Candle, Area, or Line) — the tracer is on by default. Toggle **Price line** from the tune (customization) sheet.
 
 ## Ideal Use Cases
 
@@ -262,6 +278,8 @@ Apply changes with **`controller.setStyle(…)`** or **`chart.style.copyWith(…
 | **`showCrosshair`** | `bool` | Hover/scrub vertical/horizontal GPU crosshair and marker participation. |
 | **`showTooltip`** | `bool` | Native OHLC/tooltip bubble when hovering or scrubbing. |
 | **`showLegend`** | `bool` | Top-left-style **series legend** badge (native overlay; uses `seriesLabel`). |
+| **`showCurrentPriceLine`** | `bool` | Draw the **live price tracer**: GPU horizontal line at the latest candle **close** plus matching Y-axis badge (native overlay). |
+| **`currentPriceLineColor`** | `Color` | RGBA tint for the tracer line (GPU) and Y-axis badge fill (overlay uses the same style revision). |
 
 ### `ChartStyle` — ticks & formatting
 

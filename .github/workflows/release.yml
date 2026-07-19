@@ -1,0 +1,82 @@
+# After a merge to main: run CI → if pubspec version has no git tag yet,
+# create vX.Y.Z and trigger publish.yml (no manual git tag required).
+#
+# pub.dev rejects publish from a plain "push to main" OIDC event. Tag pushes
+# made with GITHUB_TOKEN also do not start other workflows, so we:
+#   1) create the release tag for history / pub.dev tag-pattern
+#   2) workflow_dispatch publish.yml on that tag ref
+# Enable "workflow_dispatch" under Automated publishing on pub.dev (already OK
+# if you checked that box).
+
+name: Release
+
+on:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Pre-release CI
+    uses: ./.github/workflows/ci.yml
+
+  tag-and-trigger-publish:
+    name: Tag & trigger publish
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create/push release tag
+      actions: write # workflow_dispatch publish.yml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Read package version
+        id: version
+        run: |
+          VERSION=$(grep -E '^version:' pubspec.yaml | head -n1 | awk '{print $2}' | cut -d'+' -f1)
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not read version from pubspec.yaml"
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Package version: $VERSION → tag $TAG"
+
+      - name: Check if tag already exists
+        id: tag
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} already exists — skipping publish (bump pubspec version for a new release)."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} is new — will create tag and publish."
+          fi
+
+      - name: Create and push release tag
+        if: steps.tag.outputs.exists == 'false'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Trigger publish workflow
+        if: steps.tag.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Tag push with GITHUB_TOKEN does not start other workflows; dispatch explicitly.
+          gh workflow run publish.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${{ steps.version.outputs.tag }}"
+          echo "Dispatched Publish to pub.dev on ${{ steps.version.outputs.tag }}"
