@@ -1,8 +1,8 @@
 name: CI
 
 on:
-  push:
-    branches: [main, master]
+  # PRs only here. Pushes to main/master run CI via release.yml (then auto-tag
+  # + publish) so we do not double-run the suite on every merge.
   pull_request:
     branches: [main, master]
   workflow_call:
