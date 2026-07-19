@@ -35,6 +35,9 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Setup pub.dev OIDC credentials
+        uses: flutter-actions/setup-pubdev-credentials@v1
+
       - name: Install dependencies
         run: flutter pub get
 
