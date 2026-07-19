@@ -1,0 +1,51 @@
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+      # Match pub.dev automated publishing tag pattern: v{{version}}
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  # Re-run the full CI gate (analyze, tests, dry-run, suspicious-code scan)
+  # before publishing.
+  ci:
+    name: Pre-publish CI
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publish package
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC for pub.dev trusted publishing
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify tag matches pubspec version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION=$(grep -E '^version:' pubspec.yaml | head -n1 | awk '{print $2}' | cut -d'+' -f1)
+          echo "Git tag version: $TAG"
+          echo "pubspec version: $VERSION"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::Tag ($TAG) does not match pubspec.yaml version ($VERSION)"
+            exit 1
+          fi
+
+      - name: Final publish dry-run
+        run: dart pub publish --dry-run
+
+      - name: Publish to pub.dev
+        run: dart pub publish --force
