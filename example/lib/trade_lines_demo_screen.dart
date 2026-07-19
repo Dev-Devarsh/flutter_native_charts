@@ -15,12 +15,13 @@ class _TradeLinesDemoScreenState extends State<TradeLinesDemoScreen> {
   static const double _intervalMs = 60_000;
 
   late final ChartController _chart = ChartController(
-    style: const ChartStyle(
-      seriesLabel: 'BTC/USD',
+    style: ChartStyle(
+      seriesLabel: 'TRADE LINES',
       showLegend: true,
       showTooltip: true,
       showCrosshair: true,
       showCurrentPriceLine: true,
+      currentPriceLineColor: const Color(0xBF7CFFB2),
       approxXTicks: 6,
       approxYTicks: 6,
       yDecimals: 2,
@@ -117,7 +118,11 @@ class _TradeLinesDemoScreenState extends State<TradeLinesDemoScreen> {
               'Touch and hold on the chart to anchor the start point, drag to the end '
               'point, then release to create a straight trend line (like TradingView). '
               'The chart will not pan while you are drawing.',
-              style: TextStyle(fontSize: 13, height: 1.45, color: Color(0xFF8D93A2)),
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.45,
+                color: Color(0xFF8D93A2),
+              ),
             ),
           ),
           Padding(
@@ -176,7 +181,10 @@ class _LinesPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Drawn lines (${lines.length})', style: Theme.of(context).textTheme.titleSmall),
+          Text(
+            'Drawn lines (${lines.length})',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
           const SizedBox(height: 8),
           if (lines.isEmpty)
             const Text(

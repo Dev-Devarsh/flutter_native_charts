@@ -139,7 +139,8 @@ class ChartStyle {
       tooltipBgColor: tooltipBgColor ?? this.tooltipBgColor,
       tooltipTextColor: tooltipTextColor ?? this.tooltipTextColor,
       legendTextColor: legendTextColor ?? this.legendTextColor,
-      candleBodyWidthFraction: candleBodyWidthFraction ?? this.candleBodyWidthFraction,
+      candleBodyWidthFraction:
+          candleBodyWidthFraction ?? this.candleBodyWidthFraction,
       lineWidthPx: lineWidthPx ?? this.lineWidthPx,
       wickWidthPx: wickWidthPx ?? this.wickWidthPx,
       crosshairWidthPx: crosshairWidthPx ?? this.crosshairWidthPx,
@@ -162,7 +163,8 @@ class ChartStyle {
       doubleTapToReset: doubleTapToReset ?? this.doubleTapToReset,
       seriesLabel: seriesLabel ?? this.seriesLabel,
       showCurrentPriceLine: showCurrentPriceLine ?? this.showCurrentPriceLine,
-      currentPriceLineColor: currentPriceLineColor ?? this.currentPriceLineColor,
+      currentPriceLineColor:
+          currentPriceLineColor ?? this.currentPriceLineColor,
     );
   }
 }

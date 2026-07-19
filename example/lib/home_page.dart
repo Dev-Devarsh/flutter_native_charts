@@ -23,20 +23,26 @@ class HomePage extends StatelessWidget {
         children: [
           Text(
             'Interactive trade lines',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: const Color(0xFF8D93A2)),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: const Color(0xFF8D93A2)),
           ),
           const SizedBox(height: 10),
           const _TradeLinesFeaturedTile(),
           const SizedBox(height: 12),
           Text(
             'Six demos — each series type in data-feed and live mode.',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: const Color(0xFF8D93A2)),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: const Color(0xFF8D93A2)),
           ),
           const SizedBox(height: 16),
-          ..._demos.map((kind) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _DemoTile(kind: kind),
-              )),
+          ..._demos.map(
+            (kind) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _DemoTile(kind: kind),
+            ),
+          ),
         ],
       ),
     );
@@ -55,7 +61,9 @@ class _TradeLinesFeaturedTile extends StatelessWidget {
       child: InkWell(
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const TradeLinesDemoScreen()),
+            MaterialPageRoute<void>(
+              builder: (_) => const TradeLinesDemoScreen(),
+            ),
           );
         },
         child: Padding(
@@ -82,7 +90,10 @@ class _TradeLinesFeaturedTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             'Trade lines · draw segment',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         _Badge(label: 'NEW', color: Color(0xFF4A9EFF)),
@@ -92,7 +103,11 @@ class _TradeLinesFeaturedTile extends StatelessWidget {
                     Text(
                       'Touch and hold on the chart, drag to the second point, and release '
                       'to draw a straight trend line (TradingView-style).',
-                      style: TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF8D93A2)),
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: Color(0xFF8D93A2),
+                      ),
                     ),
                   ],
                 ),
@@ -105,6 +120,7 @@ class _TradeLinesFeaturedTile extends StatelessWidget {
     );
   }
 }
+
 class _DemoTile extends StatelessWidget {
   const _DemoTile({required this.kind});
 

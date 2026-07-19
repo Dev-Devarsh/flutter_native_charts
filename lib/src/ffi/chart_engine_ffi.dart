@@ -59,21 +59,34 @@ final class NativeCandle extends ffi.Struct {
 }
 
 typedef _PushCandlesRawNative =
-    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<ffi.Double> data, ffi.Int32 count);
+    ffi.Void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<ffi.Double> data,
+      ffi.Int32 count,
+    );
 typedef _PushCandlesRawDart =
-    void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<ffi.Double> data, int count);
+    void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<ffi.Double> data,
+      int count,
+    );
 
-typedef _SetSeriesTypeNative = ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Int32 type);
-typedef _SetSeriesTypeDart = void Function(ffi.Pointer<ffi.Void> engine, int type);
+typedef _SetSeriesTypeNative =
+    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Int32 type);
+typedef _SetSeriesTypeDart =
+    void Function(ffi.Pointer<ffi.Void> engine, int type);
 
 typedef _GetSeriesTypeNative = ffi.Int32 Function(ffi.Pointer<ffi.Void> engine);
 typedef _GetSeriesTypeDart = int Function(ffi.Pointer<ffi.Void> engine);
 
-typedef _SetHoverNative = ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Int32 index);
+typedef _SetHoverNative =
+    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Int32 index);
 typedef _SetHoverDart = void Function(ffi.Pointer<ffi.Void> engine, int index);
 
-typedef _SetTimeframeNative = ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Double intervalMs);
-typedef _SetTimeframeDart = void Function(ffi.Pointer<ffi.Void> engine, double intervalMs);
+typedef _SetTimeframeNative =
+    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Double intervalMs);
+typedef _SetTimeframeDart =
+    void Function(ffi.Pointer<ffi.Void> engine, double intervalMs);
 
 typedef _UpdateLiveTickNative =
     ffi.Void Function(
@@ -83,7 +96,12 @@ typedef _UpdateLiveTickNative =
       ffi.Double volume,
     );
 typedef _UpdateLiveTickDart =
-    void Function(ffi.Pointer<ffi.Void> engine, double timestamp, double price, double volume);
+    void Function(
+      ffi.Pointer<ffi.Void> engine,
+      double timestamp,
+      double price,
+      double volume,
+    );
 
 typedef _UpdateLiveOhlcNative =
     ffi.Void Function(
@@ -107,8 +125,15 @@ typedef _UpdateLiveOhlcDart =
     );
 
 typedef _SetStyleNative =
-    ffi.Void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<NativeChartStyle> style);
-typedef _SetStyleDart = void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<NativeChartStyle> style);
+    ffi.Void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<NativeChartStyle> style,
+    );
+typedef _SetStyleDart =
+    void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<NativeChartStyle> style,
+    );
 
 typedef _SyncTradeLinesNative =
     ffi.Void Function(
@@ -117,7 +142,11 @@ typedef _SyncTradeLinesNative =
       ffi.Int32 count,
     );
 typedef _SyncTradeLinesDart =
-    void Function(ffi.Pointer<ffi.Void> engine, ffi.Pointer<NativeTradeLine> lines, int count);
+    void Function(
+      ffi.Pointer<ffi.Void> engine,
+      ffi.Pointer<NativeTradeLine> lines,
+      int count,
+    );
 
 typedef _TradeLineDrawEndCallbackNative =
     ffi.Void Function(
@@ -141,8 +170,10 @@ typedef _SetTradeLineDrawEndListenerDart =
       ffi.Pointer<ffi.Void> userData,
     );
 
-typedef _RequestTradeLineDrawCancelNative = ffi.Void Function(ffi.Pointer<ffi.Void> engine);
-typedef _RequestTradeLineDrawCancelDart = void Function(ffi.Pointer<ffi.Void> engine);
+typedef _RequestTradeLineDrawCancelNative =
+    ffi.Void Function(ffi.Pointer<ffi.Void> engine);
+typedef _RequestTradeLineDrawCancelDart =
+    void Function(ffi.Pointer<ffi.Void> engine);
 
 /// FFI mirror of the C `ChartStyle` struct. Keep field order, types, and
 /// counts identical to chart_engine_ffi.h.
@@ -239,7 +270,9 @@ ffi.DynamicLibrary _openChartEngineLibrary() {
   if (Platform.isIOS) {
     return ffi.DynamicLibrary.process();
   }
-  throw UnsupportedError('ChartEngineFfi is only supported on Android and iOS.');
+  throw UnsupportedError(
+    'ChartEngineFfi is only supported on Android and iOS.',
+  );
 }
 
 /// FFI wrapper around the native chart engine.
@@ -260,38 +293,65 @@ class ChartEngineFfi {
   }
 
   ChartEngineFfi._(this._lib, this._engine) {
-    _pushCandlesRaw = _lib.lookupFunction<_PushCandlesRawNative, _PushCandlesRawDart>('push_candles_raw');
-    _appendCandlesRaw = _lib.lookupFunction<_PushCandlesRawNative, _PushCandlesRawDart>('append_candles_raw');
-    _setSeriesType = _lib.lookupFunction<_SetSeriesTypeNative, _SetSeriesTypeDart>(
-      'chart_engine_set_series_type',
+    _pushCandlesRaw = _lib
+        .lookupFunction<_PushCandlesRawNative, _PushCandlesRawDart>(
+          'push_candles_raw',
+        );
+    _appendCandlesRaw = _lib
+        .lookupFunction<_PushCandlesRawNative, _PushCandlesRawDart>(
+          'append_candles_raw',
+        );
+    _setSeriesType = _lib
+        .lookupFunction<_SetSeriesTypeNative, _SetSeriesTypeDart>(
+          'chart_engine_set_series_type',
+        );
+    _getSeriesType = _lib
+        .lookupFunction<_GetSeriesTypeNative, _GetSeriesTypeDart>(
+          'chart_engine_get_series_type',
+        );
+    _setHover = _lib.lookupFunction<_SetHoverNative, _SetHoverDart>(
+      'chart_engine_set_hover',
     );
-    _getSeriesType = _lib.lookupFunction<_GetSeriesTypeNative, _GetSeriesTypeDart>(
-      'chart_engine_get_series_type',
+    _setTimeframe = _lib.lookupFunction<_SetTimeframeNative, _SetTimeframeDart>(
+      'chart_engine_set_timeframe',
     );
-    _setHover = _lib.lookupFunction<_SetHoverNative, _SetHoverDart>('chart_engine_set_hover');
-    _setTimeframe = _lib.lookupFunction<_SetTimeframeNative, _SetTimeframeDart>('chart_engine_set_timeframe');
-    _updateLiveTick = _lib.lookupFunction<_UpdateLiveTickNative, _UpdateLiveTickDart>(
-      'chart_engine_update_live_tick',
+    _updateLiveTick = _lib
+        .lookupFunction<_UpdateLiveTickNative, _UpdateLiveTickDart>(
+          'chart_engine_update_live_tick',
+        );
+    _updateLiveOhlc = _lib
+        .lookupFunction<_UpdateLiveOhlcNative, _UpdateLiveOhlcDart>(
+          'chart_engine_update_live_ohlc',
+        );
+    _setStyle = _lib.lookupFunction<_SetStyleNative, _SetStyleDart>(
+      'chart_engine_set_style',
     );
-    _updateLiveOhlc = _lib.lookupFunction<_UpdateLiveOhlcNative, _UpdateLiveOhlcDart>(
-      'chart_engine_update_live_ohlc',
+    _setStyle = _lib.lookupFunction<_SetStyleNative, _SetStyleDart>(
+      'chart_engine_set_style',
     );
-    _setStyle = _lib.lookupFunction<_SetStyleNative, _SetStyleDart>('chart_engine_set_style');
-    _syncTradeLines = _lib.lookupFunction<_SyncTradeLinesNative, _SyncTradeLinesDart>(
-      'chart_engine_sync_trade_lines',
+    _syncTradeLines = _lib
+        .lookupFunction<_SyncTradeLinesNative, _SyncTradeLinesDart>(
+          'chart_engine_sync_trade_lines',
+        );
+    _setTradeLineDrawEndListener = _lib
+        .lookupFunction<
+          _SetTradeLineDrawEndListenerNative,
+          _SetTradeLineDrawEndListenerDart
+        >('chart_engine_set_trade_line_draw_end_listener');
+    _requestTradeLineDrawCancel = _lib
+        .lookupFunction<
+          _RequestTradeLineDrawCancelNative,
+          _RequestTradeLineDrawCancelDart
+        >('chart_engine_request_trade_line_draw_cancel');
+    _drawEndCallable =
+        ffi.NativeCallable<_TradeLineDrawEndCallbackNative>.listener(
+          _onTradeLineDrawEndNative,
+        );
+    _setTradeLineDrawEndListener(
+      _engine,
+      _drawEndCallable!.nativeFunction,
+      ffi.nullptr,
     );
-    _setTradeLineDrawEndListener = _lib.lookupFunction<
-      _SetTradeLineDrawEndListenerNative,
-      _SetTradeLineDrawEndListenerDart
-    >('chart_engine_set_trade_line_draw_end_listener');
-    _requestTradeLineDrawCancel = _lib.lookupFunction<
-      _RequestTradeLineDrawCancelNative,
-      _RequestTradeLineDrawCancelDart
-    >('chart_engine_request_trade_line_draw_cancel');
-    _drawEndCallable = ffi.NativeCallable<_TradeLineDrawEndCallbackNative>.listener(
-      _onTradeLineDrawEndNative,
-    );
-    _setTradeLineDrawEndListener(_engine, _drawEndCallable!.nativeFunction, ffi.nullptr);
   }
 
   final ffi.DynamicLibrary _lib;
@@ -311,7 +371,8 @@ class ChartEngineFfi {
   late final _RequestTradeLineDrawCancelDart _requestTradeLineDrawCancel;
 
   ffi.NativeCallable<_TradeLineDrawEndCallbackNative>? _drawEndCallable;
-  void Function(double x1, double y1, double x2, double y2)? _tradeLineDrawEndCallback;
+  void Function(double x1, double y1, double x2, double y2)?
+  _tradeLineDrawEndCallback;
 
   bool _disposed = false;
 
@@ -350,7 +411,9 @@ class ChartEngineFfi {
     if (_disposed) throw StateError('ChartEngineFfi disposed');
     if (data.isEmpty) return;
     if (data.length % 6 != 0) {
-      throw ArgumentError('data length (${data.length}) must be a multiple of 6');
+      throw ArgumentError(
+        'data length (${data.length}) must be a multiple of 6',
+      );
     }
     _ensureScratch(data.length);
     _scratchView.setRange(0, data.length, data);
@@ -384,7 +447,9 @@ class ChartEngineFfi {
     if (_disposed) throw StateError('ChartEngineFfi disposed');
     if (data.isEmpty) return;
     if (data.length % 6 != 0) {
-      throw ArgumentError('data length (${data.length}) must be a multiple of 6');
+      throw ArgumentError(
+        'data length (${data.length}) must be a multiple of 6',
+      );
     }
     _ensureScratch(data.length);
     _scratchView.setRange(0, data.length, data);
@@ -399,7 +464,10 @@ class ChartEngineFfi {
   SeriesType get seriesType {
     if (_disposed) return SeriesType.candlestick;
     final raw = _getSeriesType(_engine);
-    return SeriesType.values.firstWhere((t) => t.nativeValue == raw, orElse: () => SeriesType.candlestick);
+    return SeriesType.values.firstWhere(
+      (t) => t.nativeValue == raw,
+      orElse: () => SeriesType.candlestick,
+    );
   }
 
   void setHover(int index) {
@@ -420,7 +488,11 @@ class ChartEngineFfi {
   ///
   /// **Rendering:** **candles** use full OHLC; **line** and **area** read
   /// **close** only (same backing `NativeCandle` buffer).
-  void updateLiveTick({required double timestamp, required double price, double volume = 0}) {
+  void updateLiveTick({
+    required double timestamp,
+    required double price,
+    double volume = 0,
+  }) {
     if (_disposed) throw StateError('ChartEngineFfi disposed');
     _updateLiveTick(_engine, timestamp, price, volume);
   }
@@ -449,7 +521,9 @@ class ChartEngineFfi {
 
   /// FFI listener invoked once when the user releases after drawing a segment.
   /// Preview updates during drag stay entirely on the native side.
-  void setTradeLineDrawEndCallback(void Function(double x1, double y1, double x2, double y2)? callback) {
+  void setTradeLineDrawEndCallback(
+    void Function(double x1, double y1, double x2, double y2)? callback,
+  ) {
     _tradeLineDrawEndCallback = callback;
   }
 
@@ -569,7 +643,9 @@ class ChartEngineFfi {
   static void _writeOrderId(ffi.Array<ffi.Int8> arr, String orderId) {
     final encoded = utf8.encode(orderId);
     const int capacity = 32;
-    final int maxBytes = (encoded.length < capacity - 1) ? encoded.length : capacity - 1;
+    final int maxBytes = (encoded.length < capacity - 1)
+        ? encoded.length
+        : capacity - 1;
     for (int i = 0; i < maxBytes; i++) {
       arr[i] = encoded[i];
     }
@@ -581,7 +657,9 @@ class ChartEngineFfi {
   static void _writeSeriesLabel(ffi.Array<ffi.Uint8> arr, String label) {
     final encoded = utf8.encode(label);
     const int capacity = 32;
-    final int maxBytes = (encoded.length < capacity - 1) ? encoded.length : capacity - 1;
+    final int maxBytes = (encoded.length < capacity - 1)
+        ? encoded.length
+        : capacity - 1;
     for (int i = 0; i < maxBytes; i++) {
       arr[i] = encoded[i];
     }

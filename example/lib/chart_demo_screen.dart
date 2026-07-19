@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -118,7 +117,9 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
     _chart.pushCandlesRaw(_rawBuffer!);
     _livePrice = candles.last.close;
     _liveTs = candles.last.timestamp;
-    _chart.setStyle(_chart.style.copyWith(seriesLabel: widget.kind.seriesLabel));
+    _chart.setStyle(
+      _chart.style.copyWith(seriesLabel: widget.kind.seriesLabel),
+    );
   }
 
   Future<void> _loadBars(int count) async {
@@ -140,7 +141,9 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
     _chart.pushCandlesRaw(raw);
     _livePrice = raw[raw.length - 2];
     _liveTs = raw[raw.length - 6];
-    _chart.setStyle(_chart.style.copyWith(seriesLabel: widget.kind.seriesLabel));
+    _chart.setStyle(
+      _chart.style.copyWith(seriesLabel: widget.kind.seriesLabel),
+    );
     setState(() => _loadingData = false);
   }
 
@@ -151,7 +154,11 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
       _livePrice += (_random.nextDouble() - 0.5) * 1.8;
       _liveTs += _intervalMs * 0.12;
       try {
-        _chart.updateLivePrice(price: _livePrice, timestamp: _liveTs, volume: 20 + _random.nextDouble() * 80);
+        _chart.updateLivePrice(
+          price: _livePrice,
+          timestamp: _liveTs,
+          volume: 20 + _random.nextDouble() * 80,
+        );
       } on StateError {
         return;
       }
@@ -195,98 +202,6 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
     setState(() {});
   }
 
-  void _showCustomizationSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF12161F),
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _StyleOptionsPanel(
-                        title: 'Overlay',
-                        style: _chart.style,
-                        options: [
-                          const _StyleBoolOption('Grid', _StyleBoolField.showGrid),
-                          const _StyleBoolOption('X axis', _StyleBoolField.showXAxis),
-                          const _StyleBoolOption('Y axis', _StyleBoolField.showYAxis),
-                          const _StyleBoolOption(
-                            'Crosshair',
-                            _StyleBoolField.showCrosshair,
-                          ),
-                          const _StyleBoolOption(
-                            'Tooltip',
-                            _StyleBoolField.showTooltip,
-                          ),
-                          const _StyleBoolOption(
-                            'Legend',
-                            _StyleBoolField.showLegend,
-                          ),
-                          if (widget.kind.isLive)
-                            const _StyleBoolOption(
-                              'Price line',
-                              _StyleBoolField.showCurrentPriceLine,
-                            ),
-                        ],
-                        onChanged: (field, value) {
-                          _patchStyle((s) => field.apply(s, value));
-                          setSheetState(() {});
-                        },
-                      ),
-                      _StyleOptionsPanel(
-                        title: 'Format',
-                        style: _chart.style,
-                        options: const [
-                          _StyleBoolOption(
-                            'X as timestamp (ms)',
-                            _StyleBoolField.xIsTimestampMs,
-                          ),
-                        ],
-                        onChanged: (field, value) {
-                          _patchStyle((s) => field.apply(s, value));
-                          setSheetState(() {});
-                        },
-                      ),
-                      _InteractionPanel(
-                        style: _chart.style,
-                        selectedPresetLabel: _interactionPresetLabel,
-                        onPreset: (p) {
-                          _applyInteractionPreset(p);
-                          setSheetState(() {});
-                        },
-                        onToggle:
-                            ({
-                              required allowPanX,
-                              required allowPanY,
-                              required allowZoomX,
-                              required allowZoomY,
-                            }) {
-                              _toggleInteraction(
-                                allowPanX: allowPanX,
-                                allowPanY: allowPanY,
-                                allowZoomX: allowZoomX,
-                                allowZoomY: allowZoomY,
-                              );
-                              setSheetState(() {});
-                            },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
   @override
   Widget build(BuildContext context) {
     final kind = widget.kind;
@@ -299,7 +214,10 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: Center(
-              child: _StatusChip(attached: _chart.isAttached, live: kind.isLive),
+              child: _StatusChip(
+                attached: _chart.isAttached,
+                live: kind.isLive,
+              ),
             ),
           ),
         ],
@@ -311,7 +229,9 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Text(
               kind.description,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF8D93A2)),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF8D93A2)),
             ),
           ),
           Padding(
@@ -342,19 +262,27 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
                       _StyleBoolOption('Grid', _StyleBoolField.showGrid),
                       _StyleBoolOption('X axis', _StyleBoolField.showXAxis),
                       _StyleBoolOption('Y axis', _StyleBoolField.showYAxis),
-                      _StyleBoolOption('Crosshair', _StyleBoolField.showCrosshair),
+                      _StyleBoolOption(
+                        'Crosshair',
+                        _StyleBoolField.showCrosshair,
+                      ),
                       _StyleBoolOption('Tooltip', _StyleBoolField.showTooltip),
                       _StyleBoolOption('Legend', _StyleBoolField.showLegend),
                     ],
-                    onChanged: (field, value) => _patchStyle((s) => field.apply(s, value)),
+                    onChanged: (field, value) =>
+                        _patchStyle((s) => field.apply(s, value)),
                   ),
                   _StyleOptionsPanel(
                     title: 'Format',
                     style: _chart.style,
                     options: const [
-                      _StyleBoolOption('X as timestamp (ms)', _StyleBoolField.xIsTimestampMs),
+                      _StyleBoolOption(
+                        'X as timestamp (ms)',
+                        _StyleBoolField.xIsTimestampMs,
+                      ),
                     ],
-                    onChanged: (field, value) => _patchStyle((s) => field.apply(s, value)),
+                    onChanged: (field, value) =>
+                        _patchStyle((s) => field.apply(s, value)),
                   ),
                   _InteractionPanel(
                     style: _chart.style,
@@ -375,12 +303,16 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
                   if (!kind.isLive) ...[
                     Expanded(
                       child: FilledButton(
-                        onPressed: _loadingData ? null : () => _loadBars(_bars100k),
+                        onPressed: _loadingData
+                            ? null
+                            : () => _loadBars(_bars100k),
                         child: _loadingData
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text('Add 100K data'),
                       ),
@@ -388,7 +320,9 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: FilledButton(
-                        onPressed: _loadingData ? null : () => _loadBars(_bars1m),
+                        onPressed: _loadingData
+                            ? null
+                            : () => _loadBars(_bars1m),
                         child: const Text('Add 1M data'),
                       ),
                     ),
@@ -437,7 +371,9 @@ enum _StyleBoolField {
     _StyleBoolField.showCrosshair => s.copyWith(showCrosshair: value),
     _StyleBoolField.showTooltip => s.copyWith(showTooltip: value),
     _StyleBoolField.showLegend => s.copyWith(showLegend: value),
-    _StyleBoolField.showCurrentPriceLine => s.copyWith(showCurrentPriceLine: value),
+    _StyleBoolField.showCurrentPriceLine => s.copyWith(
+      showCurrentPriceLine: value,
+    ),
     _StyleBoolField.xIsTimestampMs => s.copyWith(xIsTimestampMs: value),
   };
 }
@@ -583,7 +519,10 @@ class _InteractionPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Interaction · setStyle → FFI', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Interaction · setStyle → FFI',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 4),
             const Text(
               'allowPanX=false uses horizontal scrub instead of pan. Toggle each axis independently.',
@@ -710,7 +649,9 @@ class _InteractionSwitch extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       dense: true,
       title: Text(label, style: const TextStyle(fontSize: 13)),
-      subtitle: subtitle != null ? Text(subtitle!, style: const TextStyle(fontSize: 11)) : null,
+      subtitle: subtitle != null
+          ? Text(subtitle!, style: const TextStyle(fontSize: 11))
+          : null,
       value: value,
       onChanged: onChanged,
     );
@@ -731,7 +672,9 @@ class _ModeBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: feed ? const Color(0xFF1A2230) : const Color(0xFF1A2A22),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: feed ? const Color(0xFF363B47) : const Color(0xFF3D5C4A)),
+        border: Border.all(
+          color: feed ? const Color(0xFF363B47) : const Color(0xFF3D5C4A),
+        ),
       ),
       child: Row(
         children: [
