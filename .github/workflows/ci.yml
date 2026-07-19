@@ -117,7 +117,10 @@ jobs:
               return 0
             fi
             # Grep returns 1 when no matches — that is success for us.
-            if matches=$(printf '%s\n' "$files" | xargs grep -Pn "$pattern" 2>/dev/null); then
+            # Drop hits on comment-only lines (# or //) to avoid false positives
+            # like Markdown-style backticks in podspec comments.
+            if matches=$(printf '%s\n' "$files" | xargs grep -Pn "$pattern" 2>/dev/null \
+              | grep -Ev ':[0-9]+:[[:space:]]*(#|//)'); then
               echo ""
               echo "── Matched: $label ──"
               echo "$matches"
