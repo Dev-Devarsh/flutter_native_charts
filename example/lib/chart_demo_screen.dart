@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -222,9 +221,18 @@ class _ChartDemoScreenState extends State<ChartDemoScreen> {
                         title: 'Overlay',
                         style: _chart.style,
                         options: [
-                          const _StyleBoolOption('Grid', _StyleBoolField.showGrid),
-                          const _StyleBoolOption('X axis', _StyleBoolField.showXAxis),
-                          const _StyleBoolOption('Y axis', _StyleBoolField.showYAxis),
+                          const _StyleBoolOption(
+                            'Grid',
+                            _StyleBoolField.showGrid,
+                          ),
+                          const _StyleBoolOption(
+                            'X axis',
+                            _StyleBoolField.showXAxis,
+                          ),
+                          const _StyleBoolOption(
+                            'Y axis',
+                            _StyleBoolField.showYAxis,
+                          ),
                           const _StyleBoolOption(
                             'Crosshair',
                             _StyleBoolField.showCrosshair,
@@ -425,7 +433,9 @@ enum _StyleBoolField {
     _StyleBoolField.showCrosshair => s.copyWith(showCrosshair: value),
     _StyleBoolField.showTooltip => s.copyWith(showTooltip: value),
     _StyleBoolField.showLegend => s.copyWith(showLegend: value),
-    _StyleBoolField.showCurrentPriceLine => s.copyWith(showCurrentPriceLine: value),
+    _StyleBoolField.showCurrentPriceLine => s.copyWith(
+      showCurrentPriceLine: value,
+    ),
     _StyleBoolField.xIsTimestampMs => s.copyWith(xIsTimestampMs: value),
   };
 }
