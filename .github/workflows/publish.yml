@@ -17,7 +17,6 @@ jobs:
     name: Publish package
     needs: ci
     runs-on: ubuntu-latest
-    environment: pub.dev
     permissions:
       id-token: write # OIDC for pub.dev trusted publishing
       contents: read
